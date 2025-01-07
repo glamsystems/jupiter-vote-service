@@ -1,0 +1,38 @@
+apply plugin: 'org.beryx.jlink'
+
+dependencies {
+  implementation libs.bouncycastle
+  implementation libs.json.iterator
+  implementation libs.sava.core
+  implementation libs.sava.rpc
+  implementation libs.sava.solana.web2
+  implementation libs.sava.solana.programs
+  implementation libs.sava.anchor.src.gen
+  implementation libs.sava.anchor.programs
+  implementation libs.sava.anchor.programs
+  implementation libs.sava.core.services
+  implementation libs.sava.solana.services
+  implementation libs.sava.kms.core
+}
+
+tasks.register('runRestService', JavaExec) {
+  classpath = sourceSets.main.runtimeClasspath
+  mainClass = project.findProperty('serviceMainClass') as String
+  var args = project.findProperty('jvmArgs');
+  if (args != null) {
+    jvmArgs = List.of((args as String).split('\\s+'))
+  }
+}
+
+afterEvaluate {
+  jlink {
+    imageName.set(project.name)
+    options.addAll(List.of(
+        '--bind-services',
+        '--no-man-pages',
+        '--no-header-files',
+        '--strip-debug',
+        '--ignore-signing-information'
+    ))
+  }
+}
