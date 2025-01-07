@@ -1,10 +1,6 @@
-rootProject.name = 'glam-services'
+rootProject.name = 'jupiter-vote-service'
 
-include 'coingecko'
-include 'core'
-include 'delegate_service'
-include 'rest'
-include 'vote'
+include 'jupiter_vote_service'
 
 def gprUser = providers.gradleProperty("gpr.user")
 def gprToken = providers.gradleProperty("gpr.token")
@@ -26,7 +22,7 @@ dependencyResolutionManagement {
   }
   versionCatalogs {
     libs {
-      from("software.sava:solana-version-catalog:0.4.40")
+      from("software.sava:solana-version-catalog:0.4.43")
     }
   }
 }
