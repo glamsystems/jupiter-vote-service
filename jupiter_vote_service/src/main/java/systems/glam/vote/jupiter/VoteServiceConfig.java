@@ -9,6 +9,7 @@ import software.sava.services.core.config.ServiceConfigUtil;
 import software.sava.services.core.remote.call.Backoff;
 import software.sava.services.core.remote.load_balance.LoadBalancer;
 import software.sava.services.core.remote.load_balance.LoadBalancerConfig;
+import software.sava.services.solana.alt.TableCacheConfig;
 import software.sava.services.solana.config.ChainItemFormatter;
 import software.sava.services.solana.config.HeliusConfig;
 import software.sava.services.solana.config.JupiterConfig;
@@ -40,6 +41,7 @@ public record VoteServiceConfig(ChainItemFormatter chainItemFormatter,
                                 RemoteResourceConfig websocketConfig,
                                 EpochServiceConfig epochServiceConfig,
                                 TxMonitorConfig txMonitorConfig,
+                                TableCacheConfig tableCacheConfig,
                                 JupiterConfig jupiterConfig,
                                 Path workDir,
                                 Path ballotFilePath,
@@ -69,6 +71,7 @@ public record VoteServiceConfig(ChainItemFormatter chainItemFormatter,
     private RemoteResourceConfig websocketConfig;
     private EpochServiceConfig epochServiceConfig;
     private TxMonitorConfig txMonitorConfig;
+    private TableCacheConfig tableCacheConfig;
     private JupiterConfig jupiterConfig;
     private Path workDir;
     private Path ballotFilePath;
@@ -112,6 +115,7 @@ public record VoteServiceConfig(ChainItemFormatter chainItemFormatter,
           websocketConfig,
           epochServiceConfig,
           txMonitorConfig,
+          tableCacheConfig == null ? TableCacheConfig.createDefault() : tableCacheConfig,
           jupiterConfig,
           workDir,
           ballotFilePath,
@@ -152,6 +156,8 @@ public record VoteServiceConfig(ChainItemFormatter chainItemFormatter,
         epochServiceConfig = EpochServiceConfig.parseConfig(ji);
       } else if (fieldEquals("txMonitor", buf, offset, len)) {
         txMonitorConfig = TxMonitorConfig.parseConfig(ji);
+      } else if (fieldEquals("tableCache", buf, offset, len)) {
+        tableCacheConfig = TableCacheConfig.parse(ji);
       } else if (fieldEquals("workDir", buf, offset, len)) {
         workDir = Path.of(ji.readString()).toAbsolutePath();
       } else if (fieldEquals("ballotFilePath", buf, offset, len)) {

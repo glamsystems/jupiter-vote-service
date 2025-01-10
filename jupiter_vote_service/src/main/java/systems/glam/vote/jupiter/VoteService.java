@@ -15,6 +15,7 @@ import software.sava.rpc.json.http.response.AccountInfo;
 import software.sava.services.core.config.RemoteResourceConfig;
 import software.sava.services.core.remote.call.Call;
 import software.sava.services.core.remote.load_balance.LoadBalancer;
+import software.sava.services.solana.alt.LookupTableCache;
 import software.sava.services.solana.config.ChainItemFormatter;
 import software.sava.services.solana.epoch.EpochInfoService;
 import software.sava.services.solana.remote.call.RpcCaller;
@@ -83,6 +84,7 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
                      final EpochInfoService epochInfoService,
                      final RemoteResourceConfig webSocketConfig,
                      final TxMonitorConfig txMonitorConfig,
+                     final LookupTableCache lookupTableCache,
                      final long minLockedToVote,
                      final Duration stopVotingBeforeEndDuration,
                      final Duration confirmVoteTxAfterDuration,
@@ -106,9 +108,7 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
         HttpClient.newHttpClient(),
         webSocketConfig.endpoint(),
         webSocketConfig.backoff(),
-        webSocket -> {
-          webSocket.programSubscribe(glamProgram, glamFilter, this);
-        }
+        webSocket -> webSocket.programSubscribe(glamProgram, glamFilter, this)
     );
     this.txMonitorService = TxMonitorService.createService(
         formatter,
@@ -121,6 +121,7 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
     this.transactionProcessor = TransactionProcessor.createProcessor(
         executor,
         signingService,
+        lookupTableCache,
         servicePublicKey,
         solanaAccounts,
         formatter,
@@ -212,6 +213,13 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
     final var rpcClients = config.rpcClients();
     final var rpcCaller = new RpcCaller(taskExecutor, rpcClients, config.callWeights());
 
+    final var tableCacheConfig = config.tableCacheConfig();
+    final var lookupTableCache = LookupTableCache.createCache(
+        taskExecutor,
+        tableCacheConfig.initialCapacity(),
+        rpcCaller.rpcClients()
+    );
+
     final var scheduleConfig = config.scheduleConfig();
     final long delayMillis = scheduleConfig.toDuration().toMillis();
     final long initialDelay = scheduleConfig.initialDelay();
@@ -224,8 +232,6 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
     final var epochInfoService = EpochInfoService.createService(config.epochServiceConfig(), rpcClients);
     serviceExecutor.execute(epochInfoService);
 
-    final var glamAccounts = GlamAccounts.MAIN_NET;
-
     final long minLockedToVote = Math.max(1, tokenContextFuture.join().fromDecimal(config.minLockedToVote()).longValue());
     final var servicePublicKey = serviceKeyFuture.join();
     return new VoteService(
@@ -236,7 +242,7 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
         delayMillis,
         SolanaAccounts.MAIN_NET,
         jupiterAccounts,
-        glamAccounts,
+        GlamAccounts.MAIN_NET,
         config.ballotFilePath(),
         config.workDir(),
         rpcCaller,
@@ -245,6 +251,7 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
         epochInfoService,
         config.websocketConfig(),
         config.txMonitorConfig(),
+        lookupTableCache,
         minLockedToVote,
         config.stopVotingBeforeEndDuration(),
         config.confirmVoteTxAfterDuration(),

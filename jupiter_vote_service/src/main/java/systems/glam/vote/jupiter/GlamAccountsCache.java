@@ -2,6 +2,7 @@ package systems.glam.vote.jupiter;
 
 import software.sava.anchor.programs.glam.GlamAccounts;
 import software.sava.anchor.programs.glam.GlamJupiterVoteClient;
+import software.sava.anchor.programs.glam.anchor.GlamPDAs;
 import software.sava.anchor.programs.jupiter.JupiterAccounts;
 import software.sava.core.accounts.PublicKey;
 import software.sava.core.accounts.SolanaAccounts;
@@ -30,7 +31,6 @@ public record GlamAccountsCache(SolanaAccounts solanaAccounts,
     return escrowAccountsMap.computeIfAbsent(glamAccount, this);
   }
 
-
   GlamVoteAccounts createVoteAccount(final PublicKey glamAccount, final PublicKey proposalKey) {
     final var voteClient = computeIfAbsent(glamAccount);
     return new GlamVoteAccounts(
@@ -41,10 +41,10 @@ public record GlamAccountsCache(SolanaAccounts solanaAccounts,
 
   @Override
   public GlamJupiterVoteClient apply(final PublicKey glamAccount) {
-    final var treasuryAccount = glamAccounts.treasuryPDA(glamAccount).publicKey();
+    final var vaultAccount = GlamPDAs.vaultPDA(glamAccounts.program(), glamAccount).publicKey();
     return GlamJupiterVoteClient.createClient(
         solanaAccounts, jupiterAccounts, glamAccounts,
-        glamAccount, treasuryAccount
+        glamAccount, vaultAccount
     );
   }
 }
