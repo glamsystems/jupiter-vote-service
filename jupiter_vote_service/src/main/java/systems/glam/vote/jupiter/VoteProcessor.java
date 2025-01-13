@@ -24,6 +24,7 @@ import static java.lang.System.Logger.Level.*;
 import static software.sava.core.accounts.PublicKey.PUBLIC_KEY_LENGTH;
 import static software.sava.core.tx.Transaction.SIGNATURE_LENGTH;
 import static software.sava.rpc.json.http.client.SolanaRpcClient.MAX_MULTIPLE_ACCOUNTS;
+import static software.sava.rpc.json.http.request.Commitment.CONFIRMED;
 import static software.sava.rpc.json.http.request.Commitment.FINALIZED;
 import static software.sava.services.solana.transactions.TransactionProcessor.formatSimulationResult;
 
@@ -43,6 +44,7 @@ abstract class VoteProcessor {
   private final Map<PublicKey, Escrow> escrowMap;
   protected final Map<PublicKey, Vote> voteMap;
   private final Instruction[] instructionArray;
+  private final int reduceBatchSize;
 
   protected int maxBatchSize;
 
@@ -72,6 +74,7 @@ abstract class VoteProcessor {
     this.side = side;
     this.voteClients = voteClients;
     this.recordedProposalVotes = recordedProposalVotes;
+    this.reduceBatchSize = numInstructionsPerGlam;
     this.instructionArray = new Instruction[maxBatchSize * numInstructionsPerGlam];
     this.maxBatchSize = maxBatchSize;
     this.escrowMap = HashMap.newHashMap(MAX_MULTIPLE_ACCOUNTS);
@@ -209,8 +212,8 @@ abstract class VoteProcessor {
     );
 
     final var simulationFutures = transactionProcessor.simulateAndEstimate(instructions);
-    if (simulationFutures == null) {
-      --batchSize;
+    if (simulationFutures.exceedsSizeLimit()) {
+      batchSize -= reduceBatchSize;
       return false;
     }
 
@@ -241,7 +244,7 @@ abstract class VoteProcessor {
 
     final var transaction = transactionProcessor.createTransaction(simulationFutures, simulationResult);
     long blockHashHeight = transactionProcessor.setBlockHash(transaction, simulationResult);
-    if (blockHashHeight < 0) {
+    if (Long.compareUnsigned(blockHashHeight, 0) <= 0) {
       final var blockHash = rpcCaller.courteousGet(
           rpcClient -> rpcClient.getLatestBlockHash(FINALIZED),
           "rpcClient::getLatestBlockHash"
@@ -266,7 +269,7 @@ abstract class VoteProcessor {
     final var txResult = txMonitorService.validateResponseAndAwaitCommitmentViaWebSocket(
         sendContext,
         FINALIZED,
-        FINALIZED,
+        CONFIRMED,
         txSig
     );
 
@@ -276,7 +279,7 @@ abstract class VoteProcessor {
     } else {
       final var sigStatus = txMonitorService.queueResult(
           FINALIZED,
-          FINALIZED,
+          CONFIRMED,
           txSig,
           sendContext.blockHeight(),
           true
