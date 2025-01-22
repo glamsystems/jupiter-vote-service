@@ -110,14 +110,6 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
         webSocketConfig.backoff(),
         webSocket -> webSocket.programSubscribe(glamProgram, glamFilter, this)
     );
-    this.txMonitorService = TxMonitorService.createService(
-        formatter,
-        rpcCaller,
-        epochInfoService,
-        webSocketManager,
-        txMonitorConfig.minSleepBetweenSigStatusPolling(),
-        txMonitorConfig.webSocketConfirmationTimeout()
-    );
     this.transactionProcessor = TransactionProcessor.createProcessor(
         executor,
         signingService,
@@ -130,6 +122,14 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
         heliusClients,
         rpcCaller.callWeights(),
         webSocketManager
+    );
+    this.txMonitorService = TxMonitorService.createService(
+        formatter,
+        rpcCaller,
+        epochInfoService,
+        webSocketManager,
+        txMonitorConfig,
+        transactionProcessor
     );
     this.changeVoteBatchSize = changeVoteBatchSize;
   }

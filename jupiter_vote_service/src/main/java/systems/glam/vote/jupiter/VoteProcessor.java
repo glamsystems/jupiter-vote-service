@@ -255,7 +255,7 @@ abstract class VoteProcessor {
     transactionProcessor.signTransaction(transaction);
     final byte[] txSigBytes = transaction.getId();
     voting.write(txSigBytes);
-    final var sendContext = transactionProcessor.sendSignedTx(transaction, blockHashHeight);
+    final var sendContext = transactionProcessor.publish(transaction, blockHashHeight);
     final var txSig = Base58.encode(txSigBytes);
     logPublishedTransaction(txSig);
     final var formattedSig = transactionProcessor.formatter().formatSig(txSig);
@@ -281,7 +281,7 @@ abstract class VoteProcessor {
           FINALIZED,
           CONFIRMED,
           txSig,
-          sendContext.blockHeight(),
+          sendContext,
           true
       ).join();
       if (sigStatus == null) {
