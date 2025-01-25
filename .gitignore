@@ -31,4 +31,4 @@ ignore
 /rest/config
 /governance/
 .config
-/vote/.vote/
+.vote/

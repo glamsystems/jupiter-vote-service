@@ -3,11 +3,13 @@
 set -e
 
 moduleName="systems.glam.jupiter_vote_service"
+readonly moduleName
 mainClass="systems.glam.vote.jupiter.VoteService"
+readonly mainClass
 
 dockerImageName="glam-systems/jupiter-vote-service:latest"
 dockerRunFlags="--detach --name liquid_stake_service --memory 1g"
-jvmArgs="-server -XX:+UseZGC -Xms256M -Xmx800M"
+jvmArgs="-server -XX:+UseZGC -Xms128M -Xmx896M"
 logLevel="INFO";
 configDirectory="$(pwd)/.config";
 configFileName="";
@@ -21,6 +23,11 @@ do
     val="${arg#*=}"
 
     case "$key" in
+      cd | configDirectory) configDirectory="$val";;
+      cfn | configFileName) configFileName="$val";;
+      dr | dryRun) dryRun="$val";;
+      drf | dockerRunFlags) dockerRunFlags="$val";;
+      jvm | jvmArgs) jvmArgs="$val";;
       l | log)
           case "$val" in
             INFO|WARN|DEBUG) logLevel="$val";;
@@ -30,16 +37,6 @@ do
             ;;
           esac
         ;;
-
-      mc | mainClass) mainClass="$val";;
-      mn | moduleName) moduleName="$val";;
-
-      drf | dockerRunFlags) dockerRunFlags="$val";;
-      jvm | jvmArgs) jvmArgs="$val";;
-
-      cd | configDirectory) configDirectory="$val";;
-      cfn | configFileName) configFileName="$val";;
-      dr | dryRun) dryRun="$val";;
 
       *)
           printf "Unsupported flag '%s' [key=%s] [val=%s].\n" "$arg" "$key" "$val";

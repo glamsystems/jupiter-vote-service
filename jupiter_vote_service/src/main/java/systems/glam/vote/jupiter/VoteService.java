@@ -51,6 +51,90 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
   private static final System.Logger logger = System.getLogger(VoteService.class.getName());
   private static final Permission VOTE_PERMISSION = Permission.Unstake;
 
+  private static VoteService createService(final ExecutorService serviceExecutor,
+                                           final ExecutorService taskExecutor,
+                                           final HttpClient httpClient) throws InterruptedException {
+    final var config = VoteServiceConfig.loadConfig(taskExecutor, httpClient);
+
+    final var signingService = config.signingServiceConfig().signingService();
+    final var serviceKeyFuture = signingService.publicKeyWithRetries();
+
+    final var jupiterConfig = config.jupiterConfig();
+    final var jupiterClient = jupiterConfig.createClient(httpClient);
+    final var jupiterAccounts = JupiterAccounts.MAIN_NET;
+    final var tokenContextFuture = Call.createCourteousCall(
+        () -> jupiterClient.token(jupiterAccounts.jupTokenMint()),
+        jupiterConfig.capacityMonitor().capacityState(),
+        jupiterConfig.backoff(),
+        "jupiterClient::token"
+    ).async(taskExecutor);
+
+    final var rpcCaller = config.rpcCaller();
+    final var rpcClients = rpcCaller.rpcClients();
+
+    final var tableCacheConfig = config.tableCacheConfig();
+    final var lookupTableCache = LookupTableCache.createCache(
+        taskExecutor,
+        tableCacheConfig.initialCapacity(),
+        rpcClients
+    );
+
+    final var scheduleConfig = config.scheduleConfig();
+    final long delayMillis = scheduleConfig.toDuration().toMillis();
+    final long initialDelay = scheduleConfig.initialDelay();
+    if (initialDelay > 0) {
+      logger.log(INFO, String.format("Starting service in %d %s.", initialDelay, scheduleConfig.timeUnit()));
+      scheduleConfig.timeUnit().sleep(initialDelay);
+    }
+
+    logger.log(INFO, "Starting epoch info service.");
+    final var epochInfoService = EpochInfoService.createService(config.epochServiceConfig(), rpcClients);
+    serviceExecutor.execute(epochInfoService);
+
+    final long minLockedToVote = Math.max(1, tokenContextFuture.join().fromDecimal(config.minLockedToVote()).longValue());
+    final var servicePublicKey = serviceKeyFuture.join();
+    return new VoteService(
+        config.chainItemFormatter(),
+        signingService,
+        servicePublicKey,
+        taskExecutor,
+        delayMillis,
+        SolanaAccounts.MAIN_NET,
+        jupiterAccounts,
+        GlamAccounts.MAIN_NET,
+        config.ballotFilePath(),
+        config.workDir(),
+        rpcCaller,
+        config.sendClients(),
+        config.heliusClient(),
+        epochInfoService,
+        config.websocketConfig(),
+        config.txMonitorConfig(),
+        lookupTableCache,
+        minLockedToVote,
+        config.stopVotingBeforeEndDuration(),
+        config.confirmVoteTxAfterDuration(),
+        config.newVoteBatchSize(),
+        config.changeVoteBatchSize()
+    );
+  }
+
+  public static void main(final String[] args) {
+    try (final var serviceExecutor = Executors.newFixedThreadPool(2)) {
+      try (final var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+        try (final var httpClient = HttpClient.newHttpClient()) {
+          try (final var voteService = createService(serviceExecutor, executor, httpClient)) {
+            voteService.run();
+          } catch (final InterruptedException ex) {
+            // exit
+          } catch (final Throwable ex) {
+            logger.log(ERROR, "Unhandled service failure.", ex);
+          }
+        }
+      }
+    }
+  }
+
   private final ChainItemFormatter formatter;
   private final PublicKey servicePublicKey;
   private final long delayMillis;
@@ -190,88 +274,6 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
 
   ChainItemFormatter chainItemFormatter() {
     return formatter;
-  }
-
-  private static VoteService createService(final ExecutorService serviceExecutor,
-                                           final ExecutorService taskExecutor,
-                                           final HttpClient httpClient) throws InterruptedException {
-    final var config = VoteServiceConfig.loadConfig(httpClient);
-
-    final var signingService = config.signingServiceConfig().signingService();
-    final var serviceKeyFuture = signingService.publicKeyWithRetries();
-
-    final var jupiterConfig = config.jupiterConfig();
-    final var jupiterClient = jupiterConfig.createClient(httpClient);
-    final var jupiterAccounts = JupiterAccounts.MAIN_NET;
-    final var tokenContextFuture = Call.createCourteousCall(
-        () -> jupiterClient.token(jupiterAccounts.jupTokenMint()),
-        jupiterConfig.capacityMonitor().capacityState(),
-        jupiterConfig.backoff(),
-        "jupiterClient::token"
-    ).async(taskExecutor);
-
-    final var rpcClients = config.rpcClients();
-    final var rpcCaller = new RpcCaller(taskExecutor, rpcClients, config.callWeights());
-
-    final var tableCacheConfig = config.tableCacheConfig();
-    final var lookupTableCache = LookupTableCache.createCache(
-        taskExecutor,
-        tableCacheConfig.initialCapacity(),
-        rpcCaller.rpcClients()
-    );
-
-    final var scheduleConfig = config.scheduleConfig();
-    final long delayMillis = scheduleConfig.toDuration().toMillis();
-    final long initialDelay = scheduleConfig.initialDelay();
-    if (initialDelay > 0) {
-      logger.log(INFO, String.format("Starting service in %d %s.", initialDelay, scheduleConfig.timeUnit()));
-      scheduleConfig.timeUnit().sleep(initialDelay);
-    }
-
-    logger.log(INFO, "Starting epoch info service.");
-    final var epochInfoService = EpochInfoService.createService(config.epochServiceConfig(), rpcClients);
-    serviceExecutor.execute(epochInfoService);
-
-    final long minLockedToVote = Math.max(1, tokenContextFuture.join().fromDecimal(config.minLockedToVote()).longValue());
-    final var servicePublicKey = serviceKeyFuture.join();
-    return new VoteService(
-        config.chainItemFormatter(),
-        signingService,
-        servicePublicKey,
-        taskExecutor,
-        delayMillis,
-        SolanaAccounts.MAIN_NET,
-        jupiterAccounts,
-        GlamAccounts.MAIN_NET,
-        config.ballotFilePath(),
-        config.workDir(),
-        rpcCaller,
-        config.sendClients(),
-        config.heliusClient(),
-        epochInfoService,
-        config.websocketConfig(),
-        config.txMonitorConfig(),
-        lookupTableCache,
-        minLockedToVote,
-        config.stopVotingBeforeEndDuration(),
-        config.confirmVoteTxAfterDuration(),
-        config.newVoteBatchSize(),
-        config.changeVoteBatchSize()
-    );
-  }
-
-  public static void main(final String[] args) throws InterruptedException {
-    try (final var serviceExecutor = Executors.newFixedThreadPool(2)) {
-      try (final var executor = Executors.newVirtualThreadPerTaskExecutor()) {
-        try (final var httpClient = HttpClient.newHttpClient()) {
-          try (final var voteService = createService(serviceExecutor, executor, httpClient)) {
-            voteService.run();
-          } catch (final RuntimeException ex) {
-            logger.log(ERROR, "Unhandled service failure.", ex);
-          }
-        }
-      }
-    }
   }
 
   @Override

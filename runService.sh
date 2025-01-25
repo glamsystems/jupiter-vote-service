@@ -3,10 +3,13 @@
 set -e
 
 simpleProjectName="jupiter_vote_service"
+readonly simpleProjectName
 moduleName="systems.glam.jupiter_vote_service"
+readonly moduleName
 mainClass="systems.glam.vote.jupiter.VoteService"
+readonly mainClass
 
-jvmArgs="-server -XX:+UseZGC -Xms256M -Xmx1G"
+jvmArgs="-server -XX:+UseZGC -Xms128M -Xmx896M"
 logLevel="INFO";
 configFile="";
 dryRun="false";
@@ -21,6 +24,9 @@ do
     val="${arg#*=}"
 
     case "$key" in
+      cf | configFile) configFile="$val";;
+      dr | dryRun) dryRun="$val";;
+      jvm | jvmArgs) jvmArgs="$val";;
       l | log)
           case "$val" in
             INFO|WARN|DEBUG) logLevel="$val";;
@@ -30,15 +36,6 @@ do
             ;;
           esac
         ;;
-
-      mc | mainClass) mainClass="$val";;
-      mn | moduleName) moduleName="$val";;
-      spn | simpleProjectName) simpleProjectName="$val";;
-
-      jvm | jvmArgs) jvmArgs="$val";;
-
-      cf | configFile) configFile="$val";;
-      dr | dryRun) dryRun="$val";;
 
       screen)
         case "$val" in
