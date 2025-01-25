@@ -39,7 +39,7 @@ export GITHUB_TOKEN="GITHUB_TOKEN"
 docker build \
   --secret type=env,id=GITHUB_ACTOR,env=GITHUB_ACTOR \
   --secret type=env,id=GITHUB_TOKEN,env=GITHUB_TOKEN \
-    -t glam-systems/liquid-stake-service:latest .
+    -t glam-systems/jupiter-vote-service:latest .
 ```
 
 #### Run Script
@@ -50,8 +50,8 @@ docker build \
 
 * configFileName=""
 * configDirectory="$(pwd)/.config"
-* dockerImageName="glam-systems/liquid-stake-service:latest"
-* dockerRunFlags="--detach --name liquid_stake_service --memory 1g"
+* dockerImageName="glam-systems/jupiter-vote-service:latest"
+* dockerRunFlags="--detach --name jupiter_vote_service --memory 1g"
 
 ```shell
 ./runDockerImage.sh --configFileName=vote_service.json
@@ -62,7 +62,7 @@ docker build \
 Java JDK 23 or later is required.
 
 Compiles a custom runtime image using Java jlink, that can be found at
-`liquid_stake_service/build/liquid_stake_service/bin/java`.
+`jupiter_vote_service/build/jupiter_vote_service/bin/java`.
 
 ```shell
  ./compile.sh

@@ -8,7 +8,7 @@ mainClass="systems.glam.vote.jupiter.VoteService"
 readonly mainClass
 
 dockerImageName="glam-systems/jupiter-vote-service:latest"
-dockerRunFlags="--detach --name liquid_stake_service --memory 1g"
+dockerRunFlags="--detach --name jupiter_vote_service --memory 1g"
 jvmArgs="-server -XX:+UseZGC -Xms128M -Xmx896M"
 logLevel="INFO";
 configDirectory="$(pwd)/.config";
