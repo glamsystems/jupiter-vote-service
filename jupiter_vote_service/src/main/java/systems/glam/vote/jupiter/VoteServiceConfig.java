@@ -125,7 +125,7 @@ public record VoteServiceConfig(ChainItemFormatter chainItemFormatter,
           workDir,
           ballotFilePath,
           scheduleConfig,
-          requireNonNullElse(minLockedToVote, BigDecimal.ZERO),
+          requireNonNullElse(minLockedToVote, BigDecimal.ONE),
           stopVotingBeforeEndDuration == null
               ? Duration.ofSeconds(60)
               : stopVotingBeforeEndDuration,

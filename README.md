@@ -2,6 +2,8 @@
 
 Automates the task for a Jupiter DAO representative to vote on-behalf of their constituents.
 
+If a GLAM is observed to cast their own vote the service will NOT override the users vote for that proposal.
+
 ## Compile & Run
 
 ### GitHub Access Token
@@ -137,6 +139,11 @@ See context below.
       }
     }
   ],
+  "rpcCallWeights": {
+    "getProgramAccounts": 2,
+    "getTransaction": 5,
+    "sendTransaction": 10
+  },
   "rpc": {
     "defaultCapacity": {
       "minCapacityDuration": "PT8S",
@@ -168,11 +175,6 @@ See context below.
         "url": "https://staked.helius-rpc.com/?api-key="
       }
     ]
-  },
-  "rpcCallWeights": {
-    "getProgramAccounts": 2,
-    "getTransaction": 5,
-    "sendTransaction": 10
   },
   "websocket": {
     "endpoint": "wss://mainnet.helius-rpc.com/?api-key="
@@ -220,3 +222,165 @@ Integrations:
 Permissions:
 
 * VoteOnProposal
+
+### `workDir`
+
+Used to cache run time state and track the proposal vote state for each delegated GLAM.
+
+### `ballotFilePath`
+
+Holds the representatives vote side for each proposal they wish to vote on.
+
+The `proposal` key can be found in the URL for each proposal page hosted by vote.jup.ag,
+e.g., https://vote.jup.ag/proposal/ByQ21v3hqdQVwPHsfwurrtEAH8pB3DYuLdp9jU2Hwnd4.
+
+The representative may change their vote by updating this file and restarting the service.
+
+#### JSON Configuration
+
+TODO: Map text based side to int.
+
+```json
+[
+  {
+    "proposal": "ByQ21v3hqdQVwPHsfwurrtEAH8pB3DYuLdp9jU2Hwnd4",
+    "side": 3
+  }
+]
+```
+
+### `formatter`
+
+Used to provide more convenient logging of accounts and transaction hashes.
+
+#### Defaults
+
+```json
+{
+  "sig": "https://solscan.io/tx/%s",
+  "address": "https://solscan.io/account/%s"
+}
+```
+
+### `notificationHooks`
+
+Detailed JSON messages will be POSTed to each webhook endpoint.
+
+Expected Messages:
+
+* TODO
+
+#### Slack Example
+
+```json
+[
+  {
+    "endpoint": "https://hooks.slack.com/services/...",
+    "bodyFormat": "{\"text\":\"%s\"}",
+    "capacity": {
+      "maxCapacity": 2,
+      "resetDuration": "1S",
+      "minCapacityDuration": "8S"
+    }
+  }
+]
+```
+
+### `rpcCallWeights`
+
+Define call weights per RPC call to help match your providers API limits. See
+the [CallWeights](https://github.com/sava-software/services/blob/main/solana/src/main/java/software/sava/services/solana/remote/call/CallWeights.java)
+class for which are supported.
+
+#### Defaults
+
+```json
+{
+  "getProgramAccounts": 2,
+  "getTransaction": 5,
+  "sendTransaction": 10
+}
+```
+
+### `rpc`
+
+* `defaultCapacity`
+* `defaultBackoff`
+* `endpoints`: Array of RPC node configurations.
+    * `url`
+    * `capacity`: Overrides `defaultCapacity`
+    * `backoff`: Overrides `defaultBackoff`
+
+#### Defaults
+
+```json
+{
+  "defaultCapacity": {
+    "maxCapacity": 10,
+    "resetDuration": "1S",
+    "minCapacityDuration": "13S"
+  }
+}
+```
+
+### `sendRPC`
+
+Same as `rpc` but only used for publishing transactions to the network. Defaults to the `rpc` configuration if not
+provided.
+
+#### Defaults
+
+```json
+{
+  "defaultCapacity": {
+    "maxCapacity": 1,
+    "resetDuration": "1S",
+    "minCapacityDuration": "5S"
+  }
+}
+```
+
+### `helius`
+
+Same as a single `rpc` `endpoint` entry. Only used for estimating priority fees.
+
+#### Defaults
+
+```json
+{
+  "capacity": {
+    "maxCapacity": 3,
+    "resetDuration": "1S",
+    "minCapacityDuration": "5S"
+  }
+}
+```
+
+### `websocket`
+
+Used to track GLAM Vault account changes.
+
+* `endpoint`
+* `backoff`
+
+### `minLockedToVote`
+
+Defaults to 1 JUP.
+
+### `stopVotingBeforeEndDuration`
+
+Stop executing vote transactions this close to the end of the proposal conclusion.
+
+### `newVoteBatchSize`
+
+Number of GLAM vaults to cast new votes for per transaction. Each new vote requires two instructions, create vote
+account and cast vote. The service will dynamically reduce this size if a transaction exceeds the size limit.
+
+Defaults to 5.
+
+### `changeVoteBatchSize`
+
+Number of GLAM vaults to change votes for per transaction. Each vote change requires one instruction, cast vote. The
+service will dynamically reduce this size if a transaction exceeds the size limit.
+
+Defaults to 10.
