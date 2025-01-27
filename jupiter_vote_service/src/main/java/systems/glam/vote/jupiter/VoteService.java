@@ -120,8 +120,8 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
   }
 
   public static void main(final String[] args) {
-    try (final var serviceExecutor = Executors.newFixedThreadPool(2)) {
-      try (final var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+    try (final var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+      try (final var serviceExecutor = Executors.newFixedThreadPool(1)) {
         try (final var httpClient = HttpClient.newHttpClient()) {
           try (final var voteService = createService(serviceExecutor, executor, httpClient)) {
             voteService.run();
@@ -130,7 +130,11 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
           } catch (final Throwable ex) {
             logger.log(ERROR, "Unhandled service failure.", ex);
           }
+        } finally {
+          serviceExecutor.shutdownNow();
         }
+      } finally {
+        executor.shutdownNow();
       }
     }
   }
@@ -392,43 +396,43 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
   @Override
   @SuppressWarnings({"BusyWait"})
   public void run() {
-    logger.log(INFO, "Starting service with key " + servicePublicKey.toBase58());
-    final var proposalVotes = readBallot();
-    final int numProposals = proposalVotes.size();
-
-    if (numProposals == 0) {
-      logger.log(INFO, String.format(
-          "No proposals configured in the ballot file %s, exiting.",
-          ballotFilePath.toAbsolutePath()
-      ));
-      return;
-    }
-
-    final var recordedVotesMap = HashMap.<PublicKey, RecordedProposalVotes>newHashMap(numProposals);
-    for (final var proposalVote : proposalVotes) {
-      final var recordedVotes = RecordedProposalVotes.createRecord(proposalsDirectory, proposalVote);
-      final var proposalKey = proposalVote.proposal();
-      recordedVotesMap.put(proposalKey, recordedVotes);
-    }
-
-    final var proposalAccountStateMap = fetchProposals(proposalVotes);
-
-    final long nowEpochSeconds = Instant.now().getEpochSecond() + stopVotingSecondsBeforeEnd;
-    if (proposalAccountStateMap.values().stream().allMatch(proposal -> cancelledOrEnded(proposal, nowEpochSeconds))) {
-      logger.log(INFO, "No pending or active proposals, truncating ballot file and exiting.");
-      try {
-        Files.writeString(ballotFilePath, "[]", TRUNCATE_EXISTING, WRITE);
-      } catch (final IOException e) {
-        throw new UncheckedIOException(e);
-      }
-      return;
-    }
-
-    // Initial websocket connection.
-    webSocketManager.webSocket();
-    fetchDelegatedGlamsWithPermission();
-
     try {
+      logger.log(INFO, "Starting service with key " + servicePublicKey.toBase58());
+      final var proposalVotes = readBallot();
+      final int numProposals = proposalVotes.size();
+
+      if (numProposals == 0) {
+        logger.log(INFO, String.format(
+            "No proposals configured in the ballot file %s, exiting.",
+            ballotFilePath.toAbsolutePath()
+        ));
+        return;
+      }
+
+      final var recordedVotesMap = HashMap.<PublicKey, RecordedProposalVotes>newHashMap(numProposals);
+      for (final var proposalVote : proposalVotes) {
+        final var recordedVotes = RecordedProposalVotes.createRecord(proposalsDirectory, proposalVote);
+        final var proposalKey = proposalVote.proposal();
+        recordedVotesMap.put(proposalKey, recordedVotes);
+      }
+
+      final var proposalAccountStateMap = fetchProposals(proposalVotes);
+
+      final long nowEpochSeconds = Instant.now().getEpochSecond() + stopVotingSecondsBeforeEnd;
+      if (proposalAccountStateMap.values().stream().allMatch(proposal -> cancelledOrEnded(proposal, nowEpochSeconds))) {
+        logger.log(INFO, "No pending or active proposals, truncating ballot file and exiting.");
+        try {
+          Files.writeString(ballotFilePath, "[]", TRUNCATE_EXISTING, WRITE);
+        } catch (final IOException e) {
+          throw new UncheckedIOException(e);
+        }
+        return;
+      }
+
+      // Initial websocket connection.
+      webSocketManager.webSocket();
+      fetchDelegatedGlamsWithPermission();
+
       // Check for and handle service vote side changes.
       var proposalIterator = proposalVotes.iterator();
       while (proposalIterator.hasNext()) {
