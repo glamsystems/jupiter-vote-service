@@ -200,6 +200,26 @@ See context below.
 }
 ```
 
+<!-- TOC -->
+
+* [signingService](#signingservice)
+    * [Delegation Requirements](#delegation-requirements)
+* [workDir](#workdir)
+* [ballotFilePath](#ballotfilepath)
+* [formatter](#formatter)
+* [notificationHooks](#notificationhooks)
+* [rpcCallWeights](#rpccallweights)
+* [rpc](#rpc)
+* [sendRPC](#sendrpc)
+* [helius](#helius)
+* [websocket](#websocket)
+* [minLockedToVote](#minlockedtovote)
+* [stopVotingBeforeEndDuration](#stopvotingbeforeendduration)
+* [newVoteBatchSize](#newvotebatchsize)
+* [changeVoteBatchSize](#changevotebatchsize)
+
+<!-- TOC -->
+
 ### `signingService`
 
 Service key used to pay for transactions.
