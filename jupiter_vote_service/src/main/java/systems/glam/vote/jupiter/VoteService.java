@@ -2,7 +2,9 @@ package systems.glam.vote.jupiter;
 
 import software.sava.anchor.programs.glam.GlamAccounts;
 import software.sava.anchor.programs.glam.GlamJupiterVoteClient;
+import software.sava.anchor.programs.glam.anchor.types.EngineFieldValue;
 import software.sava.anchor.programs.glam.anchor.types.FundAccount;
+import software.sava.anchor.programs.glam.anchor.types.IntegrationName;
 import software.sava.anchor.programs.glam.anchor.types.Permission;
 import software.sava.anchor.programs.jupiter.JupiterAccounts;
 import software.sava.anchor.programs.jupiter.governance.anchor.types.Proposal;
@@ -47,12 +49,13 @@ import static java.lang.System.Logger.Level.*;
 import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 import static java.nio.file.StandardOpenOption.WRITE;
 import static software.sava.anchor.programs.glam.GlamProgramAccountClient.isDelegatedWithPermission;
+import static software.sava.anchor.programs.glam.anchor.types.EngineFieldName.IntegrationAcls;
 import static software.sava.rpc.json.http.client.SolanaRpcClient.MAX_MULTIPLE_ACCOUNTS;
 
 public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnable, AutoCloseable {
 
   private static final System.Logger logger = System.getLogger(VoteService.class.getName());
-  private static final Permission VOTE_PERMISSION = Permission.Unstake;
+  private static final Permission VOTE_PERMISSION = Permission.VoteOnProposal;
 
   private static VoteService createService(final ExecutorService serviceExecutor,
                                            final ExecutorService taskExecutor,
@@ -103,7 +106,7 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
     final long minLockedToVote = Math.max(1, tokenContext.fromDecimal(config.minLockedToVote()).longValue());
 
     final var servicePublicKey = serviceKeyFuture.join();
-    
+
     return new VoteService(
         config.chainItemFormatter(),
         signingService,
@@ -291,15 +294,46 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
     return formatter;
   }
 
+  public static boolean hasIntegration(final FundAccount glamAccount, final IntegrationName integrationName) {
+    for (final var engineFields : glamAccount.params()) {
+      for (final var engineField : engineFields) {
+        final var engineFieldName = engineField.name();
+        if (engineFieldName == IntegrationAcls) {
+          if (engineField.value() instanceof EngineFieldValue.VecIntegrationAcl(final var integrationAcls)) {
+            for (final var integrationAcl : integrationAcls) {
+              if (integrationAcl.name() == integrationName) {
+                return true;
+              }
+            }
+            return false;
+          }
+        }
+      }
+    }
+    return false;
+  }
+
   @Override
   public void accept(final AccountInfo<byte[]> accountInfo) {
     try {
-      final var fundAccount = FundAccount.read(accountInfo.pubKey(), accountInfo.data());
-      if (isDelegatedWithPermission(fundAccount, servicePublicKey, VOTE_PERMISSION)) {
-        delegatedGlams.put(fundAccount._address(), fundAccount);
+      final var glamAccount = FundAccount.read(accountInfo.pubKey(), accountInfo.data());
+      if (isDelegatedWithPermission(glamAccount, servicePublicKey, VOTE_PERMISSION)) {
+        if (hasIntegration(glamAccount, IntegrationName.JupiterVote)) {
+          delegatedGlams.put(glamAccount._address(), glamAccount);
+        } else {
+          logger.log(WARNING, String.format(
+              "Delegate GLAM %s does not have the %s integration enabled.",
+              accountInfo.pubKey(), IntegrationName.JupiterVote
+          ));
+        }
+      } else {
+        logger.log(WARNING, String.format(
+            "Delegate GLAM %s has not given the permission to %s.",
+            accountInfo.pubKey(), VOTE_PERMISSION)
+        );
       }
     } catch (final RuntimeException ex) {
-      logger.log(ERROR, "Failed to parse fund account " + accountInfo.pubKey(), ex);
+      logger.log(ERROR, "Failed to parse GLAM account " + accountInfo.pubKey(), ex);
     }
   }
 

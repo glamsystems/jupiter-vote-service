@@ -114,17 +114,17 @@ See context below.
 
 ```json
 {
-  "workDir": ".vote",
-  "ballotFilePath": ".config/glam_ballot.json",
-  "formatter": {
-    "sig": "https://solscan.io/tx/%s",
-    "address": "https://solscan.io/account/%s"
-  },
   "signingService": {
     "factoryClass": "software.sava.kms.core.signing.MemorySignerFromFilePointerFactory",
     "config": {
       "filePath": ".config/service_key.json"
     }
+  },
+  "workDir": ".vote",
+  "ballotFilePath": ".config/glam_ballot.json",
+  "formatter": {
+    "sig": "https://solscan.io/tx/%s",
+    "address": "https://solscan.io/account/%s"
   },
   "notificationHooks": [
     {
@@ -197,3 +197,26 @@ See context below.
   "changeVoteBatchSize": 6
 }
 ```
+
+### `signingService`
+
+Service key used to pay for transactions.
+
+See [Sava KMS](https://github.com/sava-software/kms?tab=readme-ov-file#local-disk-to-in-memory) for some example
+options/implementations. The Google KMS dependency is not included in this base service, using that or providing your
+own will require building your own executable, but everything else can be used.
+
+The purpose is to separate signing operations so that this service does not have to be trusted with a private key and
+also so that transactions being signed may be independently audited.
+
+#### Delegation Requirements
+
+Each GLAM that delegates to this service key must have the following minimum configuration.
+
+Integrations:
+
+* JupiterVote
+
+Permissions:
+
+* VoteOnProposal
