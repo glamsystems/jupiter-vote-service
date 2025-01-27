@@ -13,7 +13,6 @@ import software.sava.kms.core.signing.SigningService;
 import software.sava.rpc.json.http.client.SolanaRpcClient;
 import software.sava.rpc.json.http.response.AccountInfo;
 import software.sava.services.core.config.RemoteResourceConfig;
-import software.sava.services.core.remote.call.Call;
 import software.sava.services.core.remote.load_balance.LoadBalancer;
 import software.sava.services.solana.alt.LookupTableCache;
 import software.sava.services.solana.config.ChainItemFormatter;
@@ -24,10 +23,14 @@ import software.sava.services.solana.transactions.TxMonitorConfig;
 import software.sava.services.solana.transactions.TxMonitorService;
 import software.sava.services.solana.websocket.WebSocketManager;
 import software.sava.solana.web2.helius.client.http.HeliusClient;
+import software.sava.solana.web2.jupiter.client.http.request.JupiterTokenTag;
+import software.sava.solana.web2.jupiter.client.http.response.TokenContext;
+import software.sava.solana.web2.jupiter.client.http.response.TokenExtension;
 import systems.comodal.jsoniter.JsonIterator;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.math.BigDecimal;
 import java.net.http.HttpClient;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -59,16 +62,6 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
     final var signingService = config.signingServiceConfig().signingService();
     final var serviceKeyFuture = signingService.publicKeyWithRetries();
 
-    final var jupiterConfig = config.jupiterConfig();
-    final var jupiterClient = jupiterConfig.createClient(httpClient);
-    final var jupiterAccounts = JupiterAccounts.MAIN_NET;
-    final var tokenContextFuture = Call.createCourteousCall(
-        () -> jupiterClient.token(jupiterAccounts.jupTokenMint()),
-        jupiterConfig.capacityMonitor().capacityState(),
-        jupiterConfig.backoff(),
-        "jupiterClient::token"
-    ).async(taskExecutor);
-
     final var rpcCaller = config.rpcCaller();
     final var rpcClients = rpcCaller.rpcClients();
 
@@ -91,8 +84,26 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
     final var epochInfoService = EpochInfoService.createService(config.epochServiceConfig(), rpcClients);
     serviceExecutor.execute(epochInfoService);
 
-    final long minLockedToVote = Math.max(1, tokenContextFuture.join().fromDecimal(config.minLockedToVote()).longValue());
+    final var jupiterAccounts = JupiterAccounts.MAIN_NET;
+    final var tokenContext = new TokenContext(
+        jupiterAccounts.jupTokenMint(),
+        6,
+        "Jupiter",
+        "JUP",
+        "https://static.jup.ag/jup/icon.png",
+        EnumSet.of(JupiterTokenTag.verified, JupiterTokenTag.community, JupiterTokenTag.strict),
+        BigDecimal.ZERO,
+        null,
+        null,
+        null,
+        Instant.parse("2024-04-26T10:56:58.893768Z"),
+        Instant.parse("2024-01-25T08:54:23Z"),
+        Map.of(TokenExtension.coingeckoId, "jupiter-exchange-solana")
+    );
+    final long minLockedToVote = Math.max(1, tokenContext.fromDecimal(config.minLockedToVote()).longValue());
+
     final var servicePublicKey = serviceKeyFuture.join();
+    
     return new VoteService(
         config.chainItemFormatter(),
         signingService,

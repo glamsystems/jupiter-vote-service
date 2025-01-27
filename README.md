@@ -81,3 +81,119 @@ Compiles a custom runtime image using Java jlink, that can be found at
 
 -Dsystems.glam.jupiter_vote_service.config=.config/vote_service.json
 -Dsystems.glam.jupiter_vote_service.dry_run=false
+
+## Configuration
+
+### Primitives
+
+#### Time
+
+Durations/windows/delays are [ISO-8601 duration](https://en.wikipedia.org/wiki/ISO_8601#Durations) formatted
+`PnDTnHnMn.nS`,  `PT` may be omitted.
+
+#### `capacity`
+
+Request capacity limits for constrained resources.
+
+* `maxCapacity`: Maximum requests that can be made within `resetDuration`
+* `resetDuration`: `maxCapacity` is added over the course of this duration.
+* `minCapacityDuration`: Maximum time before capacity should recover to a positive value, given that no additional
+  failures happen.
+
+#### `backoff`
+
+Backoff strategy in response to errors.
+
+* `type`: single, linear, fibonacci, exponential
+* `initialRetryDelay`
+* `maxRetryDelay`
+
+### Example
+
+See context below.
+
+```json
+{
+  "workDir": ".vote",
+  "ballotFilePath": ".config/glam_ballot.json",
+  "formatter": {
+    "sig": "https://solscan.io/tx/%s",
+    "address": "https://solscan.io/account/%s"
+  },
+  "signingService": {
+    "factoryClass": "software.sava.kms.core.signing.MemorySignerFromFilePointerFactory",
+    "config": {
+      "filePath": ".config/service_key.json"
+    }
+  },
+  "notificationHooks": [
+    {
+      "endpoint": "https://hooks.slack.com/<URL_PATH_PROVIDED_BY_SLACK>",
+      "provider": "SLACK",
+      "capacity": {
+        "maxCapacity": 2,
+        "resetDuration": "1S",
+        "minCapacityDuration": "8S"
+      }
+    }
+  ],
+  "rpc": {
+    "defaultCapacity": {
+      "minCapacityDuration": "PT8S",
+      "maxCapacity": 4,
+      "resetDuration": "PT1S"
+    },
+    "endpoints": [
+      {
+        "url": "https://mainnet.helius-rpc.com/?api-key=",
+        "capacity": {
+          "minCapacityDuration": "PT5S",
+          "maxCapacity": 50,
+          "resetDuration": "PT1S"
+        }
+      },
+      {
+        "url": "https://solana-mainnet.rpc.extrnode.com/"
+      }
+    ]
+  },
+  "sendRPC": {
+    "defaultCapacity": {
+      "maxCapacity": 1,
+      "resetDuration": "1S",
+      "minCapacityDuration": "8S"
+    },
+    "endpoints": [
+      {
+        "url": "https://staked.helius-rpc.com/?api-key="
+      }
+    ]
+  },
+  "rpcCallWeights": {
+    "getProgramAccounts": 2,
+    "getTransaction": 5,
+    "sendTransaction": 10
+  },
+  "websocket": {
+    "endpoint": "wss://mainnet.helius-rpc.com/?api-key="
+  },
+  "helius": {
+    "url": "https://mainnet.helius-rpc.com/?api-key=",
+    "capacity": {
+      "maxCapacity": 2,
+      "resetDuration": "1S",
+      "minCapacityDuration": "8S"
+    }
+  },
+  "schedule": {
+    "initialDelay": 0,
+    "delay": 1,
+    "timeUnit": "HOURS"
+  },
+  "minLockedToVote": 1,
+  "stopVotingBeforeEndDuration": "42S",
+  "confirmVoteTxAfterDuration": "42S",
+  "newVoteBatchSize": 3,
+  "changeVoteBatchSize": 6
+}
+```

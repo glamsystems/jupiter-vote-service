@@ -14,7 +14,6 @@ import software.sava.services.net.http.WebHookConfig;
 import software.sava.services.solana.alt.TableCacheConfig;
 import software.sava.services.solana.config.ChainItemFormatter;
 import software.sava.services.solana.config.HeliusConfig;
-import software.sava.services.solana.config.JupiterConfig;
 import software.sava.services.solana.epoch.EpochServiceConfig;
 import software.sava.services.solana.remote.call.CallWeights;
 import software.sava.services.solana.remote.call.RpcCaller;
@@ -47,7 +46,6 @@ public record VoteServiceConfig(ChainItemFormatter chainItemFormatter,
                                 TxMonitorConfig txMonitorConfig,
                                 List<WebHookConfig> webHookConfigs,
                                 TableCacheConfig tableCacheConfig,
-                                JupiterConfig jupiterConfig,
                                 Path workDir,
                                 Path ballotFilePath,
                                 ScheduleConfig scheduleConfig,
@@ -80,7 +78,6 @@ public record VoteServiceConfig(ChainItemFormatter chainItemFormatter,
     private TxMonitorConfig txMonitorConfig;
     private List<WebHookConfig> webHookConfigs;
     private TableCacheConfig tableCacheConfig;
-    private JupiterConfig jupiterConfig;
     private Path workDir;
     private Path ballotFilePath;
     private ScheduleConfig scheduleConfig;
@@ -114,18 +111,6 @@ public record VoteServiceConfig(ChainItemFormatter chainItemFormatter,
 
       final var heliusClient = heliusConfig.createHeliusClient(httpClient);
 
-      if (jupiterConfig == null) {
-        jupiterConfig = new JupiterConfig(
-            null, null,
-            CapacityConfig.createSimpleConfig(
-                Duration.ofSeconds(8),
-                1,
-                Duration.ofSeconds(8)
-            ).createHttpResponseMonitor("Jupiter"),
-            DEFAULT_NETWORK_BACKOFF
-        );
-      }
-
       return new VoteServiceConfig(
           chainItemFormatter == null ? ChainItemFormatter.createDefault() : chainItemFormatter,
           signingServiceConfig,
@@ -137,7 +122,6 @@ public record VoteServiceConfig(ChainItemFormatter chainItemFormatter,
           txMonitorConfig == null ? TxMonitorConfig.createDefault() : txMonitorConfig,
           webHookConfigs == null ? List.of() : webHookConfigs,
           tableCacheConfig == null ? TableCacheConfig.createDefault() : tableCacheConfig,
-          jupiterConfig,
           workDir,
           ballotFilePath,
           scheduleConfig,
@@ -202,16 +186,6 @@ public record VoteServiceConfig(ChainItemFormatter chainItemFormatter,
             CapacityConfig.createSimpleConfig(
                 Duration.ofSeconds(5),
                 3,
-                Duration.ofSeconds(1)
-            ),
-            DEFAULT_NETWORK_BACKOFF
-        );
-      } else if (fieldEquals("jupiter", buf, offset, len)) {
-        jupiterConfig = JupiterConfig.parseConfig(
-            ji,
-            CapacityConfig.createSimpleConfig(
-                Duration.ofSeconds(13),
-                1,
                 Duration.ofSeconds(1)
             ),
             DEFAULT_NETWORK_BACKOFF
