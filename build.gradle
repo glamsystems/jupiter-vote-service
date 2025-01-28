@@ -37,43 +37,43 @@ subprojects {
     maven {
       url = "https://maven.pkg.github.com/comodal/json-iterator"
       credentials {
-        username = "$GPR_USER"
-        password = "$GPR_TOKEN"
+        username = GPR_USER
+        password = GPR_TOKEN
       }
     }
     maven {
       url = "https://maven.pkg.github.com/sava-software/sava"
       credentials {
-        username = "$GPR_USER"
-        password = "$GPR_TOKEN"
+        username = GPR_USER
+        password = GPR_TOKEN
       }
     }
     maven {
       url = "https://maven.pkg.github.com/sava-software/solana-programs"
       credentials {
-        username = "$GPR_USER"
-        password = "$GPR_TOKEN"
+        username = GPR_USER
+        password = GPR_TOKEN
       }
     }
     maven {
       url = "https://maven.pkg.github.com/sava-software/anchor-src-gen"
       credentials {
-        username = "$GPR_USER"
-        password = "$GPR_TOKEN"
+        username = GPR_USER
+        password = GPR_TOKEN
       }
     }
     maven {
       url = "https://maven.pkg.github.com/sava-software/anchor-programs"
       credentials {
-        username = "$GPR_USER"
-        password = "$GPR_TOKEN"
+        username = GPR_USER
+        password = GPR_TOKEN
       }
     }
     maven {
       url = "https://maven.pkg.github.com/sava-software/ravina"
       credentials {
-        username = "$GPR_USER"
-        password = "$GPR_TOKEN"
+        username = GPR_USER
+        password = GPR_TOKEN
       }
     }
     mavenCentral()
