@@ -235,11 +235,11 @@ also so that transactions being signed may be independently audited.
 
 Each GLAM that delegates to this service key must have the following minimum configuration.
 
-Integrations:
+##### Integrations
 
 * JupiterVote
 
-Permissions:
+##### Permissions
 
 * VoteOnProposal
 
