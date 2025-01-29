@@ -2,10 +2,10 @@ package systems.glam.vote.jupiter;
 
 import software.sava.anchor.programs.glam.GlamAccounts;
 import software.sava.anchor.programs.glam.GlamJupiterVoteClient;
-import software.sava.anchor.programs.glam.anchor.types.EngineFieldValue;
-import software.sava.anchor.programs.glam.anchor.types.FundAccount;
-import software.sava.anchor.programs.glam.anchor.types.IntegrationName;
+import software.sava.anchor.programs.glam.anchor.types.Integration;
 import software.sava.anchor.programs.glam.anchor.types.Permission;
+import software.sava.anchor.programs.glam.anchor.types.StateAccount;
+import software.sava.anchor.programs.glam_v0.anchor.types.FundAccount;
 import software.sava.anchor.programs.jupiter.JupiterAccounts;
 import software.sava.anchor.programs.jupiter.governance.anchor.types.Proposal;
 import software.sava.anchor.programs.jupiter.voter.anchor.types.Escrow;
@@ -48,8 +48,8 @@ import java.util.stream.Collectors;
 import static java.lang.System.Logger.Level.*;
 import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 import static java.nio.file.StandardOpenOption.WRITE;
+import static software.sava.anchor.programs.glam.GlamProgramAccountClient.hasIntegration;
 import static software.sava.anchor.programs.glam.GlamProgramAccountClient.isDelegatedWithPermission;
-import static software.sava.anchor.programs.glam.anchor.types.EngineFieldName.IntegrationAcls;
 import static software.sava.rpc.json.http.client.SolanaRpcClient.MAX_MULTIPLE_ACCOUNTS;
 
 public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnable, AutoCloseable {
@@ -159,7 +159,7 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
   private final GlamAccountsCache glamAccountsCache;
   private final Path ballotFilePath;
   private final Path proposalsDirectory;
-  private final Map<PublicKey, FundAccount> delegatedGlams;
+  private final Map<PublicKey, StateAccount> delegatedGlams;
   private final RpcCaller rpcCaller;
   private final TransactionProcessor transactionProcessor;
   private final TxMonitorService txMonitorService;
@@ -205,7 +205,7 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
     this.glamAccountsCache = GlamAccountsCache.createCache(solanaAccounts, glamAccounts, jupiterAccounts);
     this.delegatedGlams = new ConcurrentHashMap<>();
     final var glamProgram = glamAccounts.program();
-    final var glamFilter = List.of(FundAccount.DISCRIMINATOR_FILTER);
+    final var glamFilter = List.of(StateAccount.DISCRIMINATOR_FILTER);
     this.webSocketManager = WebSocketManager.createManager(
         HttpClient.newHttpClient(),
         webSocketConfig.endpoint(),
@@ -294,42 +294,28 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
     return formatter;
   }
 
-  public static boolean hasIntegration(final FundAccount glamAccount, final IntegrationName integrationName) {
-    for (final var engineFields : glamAccount.params()) {
-      for (final var engineField : engineFields) {
-        final var engineFieldName = engineField.name();
-        if (engineFieldName == IntegrationAcls) {
-          if (engineField.value() instanceof EngineFieldValue.VecIntegrationAcl(final var integrationAcls)) {
-            for (final var integrationAcl : integrationAcls) {
-              if (integrationAcl.name() == integrationName) {
-                return true;
-              }
-            }
-            return false;
-          }
-        }
-      }
-    }
-    return false;
-  }
 
   @Override
   public void accept(final AccountInfo<byte[]> accountInfo) {
     try {
-      final var glamAccount = FundAccount.read(accountInfo.pubKey(), accountInfo.data());
+      final var glamAccount = StateAccount.read(accountInfo.pubKey(), accountInfo.data());
       if (isDelegatedWithPermission(glamAccount, servicePublicKey, VOTE_PERMISSION)) {
-        if (hasIntegration(glamAccount, IntegrationName.JupiterVote)) {
+        if (hasIntegration(glamAccount, Integration.JupiterVote)) {
           delegatedGlams.put(glamAccount._address(), glamAccount);
         } else {
-          logger.log(WARNING, String.format(
-              "Delegate GLAM %s does not have the %s integration enabled.",
-              accountInfo.pubKey(), IntegrationName.JupiterVote
-          ));
+          logger.log(
+              WARNING, String.format(
+                  "Delegate GLAM %s does not have the %s integration enabled.",
+                  accountInfo.pubKey(), Integration.JupiterVote
+              )
+          );
         }
       } else {
-        logger.log(WARNING, String.format(
-            "Delegate GLAM %s has not given the permission to %s.",
-            accountInfo.pubKey(), VOTE_PERMISSION)
+        logger.log(
+            WARNING, String.format(
+                "Delegate GLAM %s has not given the permission to %s.",
+                accountInfo.pubKey(), VOTE_PERMISSION
+            )
         );
       }
     } catch (final RuntimeException ex) {
@@ -352,10 +338,12 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
     for (final var accountInfo : glamAccounts) {
       accept(accountInfo);
     }
-    logger.log(INFO, String.format(
-        "Filtered %d delegated glam accounts with permission to vote.",
-        delegatedGlams.size()
-    ));
+    logger.log(
+        INFO, String.format(
+            "Filtered %d delegated glam accounts with permission to vote.",
+            delegatedGlams.size()
+        )
+    );
   }
 
   private boolean inActiveProposal(final PublicKey proposalKey,
@@ -447,10 +435,12 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
       final int numProposals = proposalVotes.size();
 
       if (numProposals == 0) {
-        logger.log(INFO, String.format(
-            "No proposals configured in the ballot file %s, exiting.",
-            ballotFilePath.toAbsolutePath()
-        ));
+        logger.log(
+            INFO, String.format(
+                "No proposals configured in the ballot file %s, exiting.",
+                ballotFilePath.toAbsolutePath()
+            )
+        );
         return;
       }
 

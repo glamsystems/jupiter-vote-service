@@ -1,7 +1,7 @@
 package systems.glam.vote.jupiter;
 
 import software.sava.anchor.programs.glam.GlamJupiterVoteClient;
-import software.sava.anchor.programs.glam.anchor.types.FundAccount;
+import software.sava.anchor.programs.glam.anchor.types.StateAccount;
 import software.sava.anchor.programs.jupiter.governance.anchor.types.Vote;
 import software.sava.core.accounts.PublicKey;
 import software.sava.core.tx.Transaction;
@@ -64,7 +64,7 @@ record Voting(int side,
 
   void recoverState(final PublicKey proposalKey,
                     final RecordedProposalVotes recordedProposalVotes,
-                    final Map<PublicKey, FundAccount> delegatedGlams,
+                    final Map<PublicKey, StateAccount> delegatedGlams,
                     final GlamAccountsCache glamAccountsCache,
                     final RpcCaller rpcCaller) {
     if (txSig != null) {
