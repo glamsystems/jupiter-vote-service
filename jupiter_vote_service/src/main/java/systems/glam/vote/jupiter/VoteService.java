@@ -84,7 +84,7 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
     }
 
     logger.log(INFO, "Starting epoch info service.");
-    final var epochInfoService = EpochInfoService.createService(config.epochServiceConfig(), rpcClients);
+    final var epochInfoService = EpochInfoService.createService(config.epochServiceConfig(), rpcCaller);
     serviceExecutor.execute(epochInfoService);
 
     final var jupiterAccounts = JupiterAccounts.MAIN_NET;
@@ -163,6 +163,7 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
   private final RpcCaller rpcCaller;
   private final TransactionProcessor transactionProcessor;
   private final TxMonitorService txMonitorService;
+  private final HttpClient webSocketHttpClient;
   private final WebSocketManager webSocketManager;
   private final long minLockedToVote;
   private final long stopVotingSecondsBeforeEnd;
@@ -206,8 +207,9 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
     this.delegatedGlams = new ConcurrentHashMap<>();
     final var glamProgram = glamAccounts.program();
     final var glamFilter = List.of(StateAccount.DISCRIMINATOR_FILTER);
+    this.webSocketHttpClient = HttpClient.newHttpClient();
     this.webSocketManager = WebSocketManager.createManager(
-        HttpClient.newHttpClient(),
+        webSocketHttpClient,
         webSocketConfig.endpoint(),
         webSocketConfig.backoff(),
         webSocket -> webSocket.programSubscribe(glamProgram, glamFilter, this)
@@ -298,7 +300,7 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
   @Override
   public void accept(final AccountInfo<byte[]> accountInfo) {
     try {
-      final var glamAccount = StateAccount.read(accountInfo.pubKey(), accountInfo.data());
+      final var glamAccount = StateAccount.read(accountInfo);
       if (isDelegatedWithPermission(glamAccount, servicePublicKey, VOTE_PERMISSION)) {
         if (hasIntegration(glamAccount, Integration.JupiterVote)) {
           delegatedGlams.put(glamAccount._address(), glamAccount);
@@ -399,9 +401,8 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
         "rpcClient::getMultipleAccounts"
     );
     for (final var accountInfo : proposalAccounts) {
-      final var proposalKey = accountInfo.pubKey();
-      final var proposal = Proposal.read(proposalKey, accountInfo.data());
-      proposalAccountStateMap.put(proposalKey, proposal);
+      final var proposal = Proposal.read(accountInfo);
+      proposalAccountStateMap.put(proposal._address(), proposal);
     }
   }
 
@@ -616,5 +617,6 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
   @Override
   public void close() {
     webSocketManager.close();
+    webSocketHttpClient.close();
   }
 }
