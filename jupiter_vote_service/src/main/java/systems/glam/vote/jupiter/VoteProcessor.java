@@ -93,9 +93,10 @@ abstract class VoteProcessor {
   final void processVotes() throws InterruptedException {
     final int numGlams = voteClients.length;
     logger.log(INFO, String.format(
-        "Casting %d side vote for %d glams for proposal %s.",
-        side, numGlams, proposalKey.toBase58()
-    ));
+            "Casting %d side vote for %d glams for proposal %s.",
+            side, numGlams, proposalKey.toBase58()
+        )
+    );
     if (numGlams > 0) {
       recordedProposalVotes.truncateVoting();
     }
@@ -115,13 +116,13 @@ abstract class VoteProcessor {
       final var escrowKeyList = Arrays.asList(escrowKeys);
       final var escrowAccountInfosFuture = rpcCaller.courteousCall(
           rpcClient -> rpcClient.getMultipleAccounts(escrowKeyList, Escrow.FACTORY),
-          "rpcClient::getMultipleAccounts"
+          "rpcClient::getEscrowAccounts"
       );
 
       final var voteKeyList = Arrays.asList(voteKeys);
       final var voteAccountInfos = rpcCaller.courteousGet(
           rpcClient -> rpcClient.getMultipleAccounts(voteKeyList, Vote.FACTORY),
-          "rpcClient::getMultipleAccounts"
+          "rpcClient::getVoteAccounts"
       );
 
       for (final var accountInfo : voteAccountInfos) {
@@ -134,9 +135,10 @@ abstract class VoteProcessor {
       }
 
       logger.log(INFO, String.format(
-          "Retrieved %d escrow and %d vote accounts.",
-          escrowAccountInfos.size(), voteAccountInfos.size()
-      ));
+              "Retrieved %d escrow and %d vote accounts.",
+              escrowAccountInfos.size(), voteAccountInfos.size()
+          )
+      );
       processBatch(from, voteKeys);
     }
   }
@@ -174,7 +176,8 @@ abstract class VoteProcessor {
       if (escrow == null) {
         // TODO: Send alert that glam does not have an escrow account and add an ignore list.
         throw new IllegalStateException(String.format("""
-            GLAM %s does not have an escrow account.""", voteClient.glamKey()));
+            GLAM %s does not have an escrow account.""", voteClient.glamKey()
+        ));
       } else if (!voteService.eligibleToVote(escrow)) {
         continue;
       }
@@ -218,9 +221,10 @@ abstract class VoteProcessor {
     }
 
     logger.log(INFO, String.format(
-        "Simulating %d side vote transaction %d glams for proposal %s.",
-        side, batchSize, proposalKey.toBase58()
-    ));
+            "Simulating %d side vote transaction %d glams for proposal %s.",
+            side, batchSize, proposalKey.toBase58()
+        )
+    );
 
     final int keysByteLength = batchSize * PUBLIC_KEY_LENGTH;
     final byte[] votingFileBuffer = new byte[2 + keysByteLength + SIGNATURE_LENGTH];
@@ -260,11 +264,12 @@ abstract class VoteProcessor {
     logPublishedTransaction(txSig);
     final var formattedSig = transactionProcessor.formatter().formatSig(txSig);
     logger.log(INFO, String.format("""
-            Published %d vote instructions:
-            %s
-            """,
-        instructions.size(), formattedSig
-    ));
+                Published %d vote instructions:
+                %s
+                """,
+            instructions.size(), formattedSig
+        )
+    );
 
     final var txResult = txMonitorService.validateResponseAndAwaitCommitmentViaWebSocket(
         sendContext,
@@ -286,11 +291,12 @@ abstract class VoteProcessor {
       ).join();
       if (sigStatus == null) {
         logger.log(INFO, String.format("""
-                Transaction expired, resetting batch.
-                %s
-                """,
-            formattedSig
-        ));
+                    Transaction expired, resetting batch.
+                    %s
+                    """,
+                formattedSig
+            )
+        );
         return false;
       }
       error = sigStatus.error();
@@ -316,10 +322,12 @@ abstract class VoteProcessor {
           case IxError.ComputationalBudgetExceeded _, IxError.MaxAccountsExceeded _ -> {
             this.maxBatchSize = reduceBatchSize();
             logger.log(WARNING, String.format("""
-                    
-                    Reducing vote batch size to %d because %s.
-                    """,
-                this.maxBatchSize, ixError));
+                        
+                        Reducing vote batch size to %d because %s.
+                        """,
+                    this.maxBatchSize, ixError
+                )
+            );
           }
           case IxError.Custom(final long errorCode) -> {
             logger.log(ERROR, logResult.get());
@@ -332,12 +340,14 @@ abstract class VoteProcessor {
               } // else { // Govern Program: newVote
             }
             throw new IllegalStateException(String.format("""
-                Unhandled ix error [index=%d] [error=%s]""", ixIndex, ixError));
+                Unhandled ix error [index=%d] [error=%s]""", ixIndex, ixError
+            ));
           }
           default -> {
             logger.log(ERROR, logResult.get());
             throw new IllegalStateException(String.format("""
-                Unhandled ix error [index=%d] [error=%s]""", ixIndex, ixError));
+                Unhandled ix error [index=%d] [error=%s]""", ixIndex, ixError
+            ));
           }
         }
       }
@@ -357,14 +367,15 @@ abstract class VoteProcessor {
       }
     }
     logger.log(INFO, String.format("""
-            
-            Published %d votes to the network.
-              sig: %s
-              glams: ["%s"]
-            """,
-        batchSize,
-        voteService.chainItemFormatter().formatSig(txSig),
-        String.join("\", \"", glamKeys)
-    ));
+                
+                Published %d votes to the network.
+                  sig: %s
+                  glams: ["%s"]
+                """,
+            batchSize,
+            voteService.chainItemFormatter().formatSig(txSig),
+            String.join("\", \"", glamKeys)
+        )
+    );
   }
 }

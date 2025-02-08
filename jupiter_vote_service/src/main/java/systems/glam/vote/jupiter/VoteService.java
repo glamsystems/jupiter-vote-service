@@ -66,26 +66,6 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
     final var serviceKeyFuture = signingService.publicKeyWithRetries();
 
     final var rpcCaller = config.rpcCaller();
-    final var rpcClients = rpcCaller.rpcClients();
-
-    final var tableCacheConfig = config.tableCacheConfig();
-    final var lookupTableCache = LookupTableCache.createCache(
-        taskExecutor,
-        tableCacheConfig.initialCapacity(),
-        rpcClients
-    );
-
-    final var scheduleConfig = config.scheduleConfig();
-    final long delayMillis = scheduleConfig.toDuration().toMillis();
-    final long initialDelay = scheduleConfig.initialDelay();
-    if (initialDelay > 0) {
-      logger.log(INFO, String.format("Starting service in %d %s.", initialDelay, scheduleConfig.timeUnit()));
-      scheduleConfig.timeUnit().sleep(initialDelay);
-    }
-
-    logger.log(INFO, "Starting epoch info service.");
-    final var epochInfoService = EpochInfoService.createService(config.epochServiceConfig(), rpcCaller);
-    serviceExecutor.execute(epochInfoService);
 
     final var jupiterAccounts = JupiterAccounts.MAIN_NET;
     final var tokenContext = new TokenContext(
@@ -103,7 +83,46 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
         Instant.parse("2024-01-25T08:54:23Z"),
         Map.of(TokenExtension.coingeckoId, "jupiter-exchange-solana")
     );
+
+    final var solanaAccounts = SolanaAccounts.MAIN_NET;
+    final var glamAccounts = GlamAccounts.MAIN_NET;
+    final var glamAccountsCache = GlamAccountsCache.createCache(solanaAccounts, glamAccounts, jupiterAccounts);
+
+    final var workDir = config.workDir();
+    final var apiConfig = config.apiConfig();
+    final var webServer = VoteServiceWebServer.createServer(
+        taskExecutor,
+        apiConfig.port(),
+        apiConfig.basePath(),
+        workDir,
+        glamAccountsCache,
+        rpcCaller,
+        tokenContext
+    );
+    webServer.start();
+
+    final var rpcClients = rpcCaller.rpcClients();
+    final var tableCacheConfig = config.tableCacheConfig();
+    final var lookupTableCache = LookupTableCache.createCache(
+        taskExecutor,
+        tableCacheConfig.initialCapacity(),
+        rpcClients
+    );
+
     final long minLockedToVote = Math.max(1, tokenContext.fromDecimal(config.minLockedToVote()).longValue());
+
+    final var epochInfoService = EpochInfoService.createService(config.epochServiceConfig(), rpcCaller);
+
+    final var scheduleConfig = config.scheduleConfig();
+    final long delayMillis = scheduleConfig.toDuration().toMillis();
+    final long initialDelay = scheduleConfig.initialDelay();
+    if (initialDelay > 0) {
+      logger.log(INFO, String.format("Starting service in %d %s.", initialDelay, scheduleConfig.timeUnit()));
+      scheduleConfig.timeUnit().sleep(initialDelay);
+    }
+
+    logger.log(INFO, "Starting epoch info service.");
+    serviceExecutor.execute(epochInfoService);
 
     final var servicePublicKey = serviceKeyFuture.join();
 
@@ -113,11 +132,12 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
         servicePublicKey,
         taskExecutor,
         delayMillis,
-        SolanaAccounts.MAIN_NET,
+        solanaAccounts,
         jupiterAccounts,
-        GlamAccounts.MAIN_NET,
+        glamAccounts,
+        glamAccountsCache,
         config.ballotFilePath(),
-        config.workDir(),
+        workDir,
         rpcCaller,
         config.sendClients(),
         config.heliusClient(),
@@ -125,9 +145,9 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
         config.websocketConfig(),
         config.txMonitorConfig(),
         lookupTableCache,
+        webServer,
         minLockedToVote,
         config.stopVotingBeforeEndDuration(),
-        config.confirmVoteTxAfterDuration(),
         config.newVoteBatchSize(),
         config.changeVoteBatchSize()
     );
@@ -165,45 +185,46 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
   private final TxMonitorService txMonitorService;
   private final HttpClient webSocketHttpClient;
   private final WebSocketManager webSocketManager;
+  private final VoteServiceWebServer webServer;
   private final long minLockedToVote;
   private final long stopVotingSecondsBeforeEnd;
-  private final long confirmVoteTxAfterSeconds;
   private int newVoteBatchSize;
   private int changeVoteBatchSize;
 
-  public VoteService(final ChainItemFormatter formatter,
-                     final SigningService signingService,
-                     final PublicKey servicePublicKey,
-                     final ExecutorService executor,
-                     final long delayMillis,
-                     final SolanaAccounts solanaAccounts,
-                     final JupiterAccounts jupiterAccounts,
-                     final GlamAccounts glamAccounts,
-                     final Path ballotFilePath,
-                     final Path workDirectory,
-                     final RpcCaller rpcCaller,
-                     final LoadBalancer<SolanaRpcClient> sendClients,
-                     final LoadBalancer<HeliusClient> heliusClients,
-                     final EpochInfoService epochInfoService,
-                     final RemoteResourceConfig webSocketConfig,
-                     final TxMonitorConfig txMonitorConfig,
-                     final LookupTableCache lookupTableCache,
-                     final long minLockedToVote,
-                     final Duration stopVotingBeforeEndDuration,
-                     final Duration confirmVoteTxAfterDuration,
-                     final int newVoteBatchSize,
-                     final int changeVoteBatchSize) {
+  private VoteService(final ChainItemFormatter formatter,
+                      final SigningService signingService,
+                      final PublicKey servicePublicKey,
+                      final ExecutorService executor,
+                      final long delayMillis,
+                      final SolanaAccounts solanaAccounts,
+                      final JupiterAccounts jupiterAccounts,
+                      final GlamAccounts glamAccounts,
+                      final GlamAccountsCache glamAccountsCache,
+                      final Path ballotFilePath,
+                      final Path workDirectory,
+                      final RpcCaller rpcCaller,
+                      final LoadBalancer<SolanaRpcClient> sendClients,
+                      final LoadBalancer<HeliusClient> heliusClients,
+                      final EpochInfoService epochInfoService,
+                      final RemoteResourceConfig webSocketConfig,
+                      final TxMonitorConfig txMonitorConfig,
+                      final LookupTableCache lookupTableCache,
+                      final VoteServiceWebServer webServer,
+                      final long minLockedToVote,
+                      final Duration stopVotingBeforeEndDuration,
+                      final int newVoteBatchSize,
+                      final int changeVoteBatchSize) {
     this.formatter = formatter;
     this.servicePublicKey = servicePublicKey;
     this.delayMillis = delayMillis;
     this.proposalsDirectory = workDirectory.resolve(".proposals");
     this.rpcCaller = rpcCaller;
+    this.webServer = webServer;
     this.minLockedToVote = minLockedToVote;
     this.stopVotingSecondsBeforeEnd = stopVotingBeforeEndDuration.toSeconds();
-    this.confirmVoteTxAfterSeconds = confirmVoteTxAfterDuration.toSeconds();
     this.newVoteBatchSize = newVoteBatchSize;
     this.ballotFilePath = ballotFilePath;
-    this.glamAccountsCache = GlamAccountsCache.createCache(solanaAccounts, glamAccounts, jupiterAccounts);
+    this.glamAccountsCache = glamAccountsCache;
     this.delegatedGlams = new ConcurrentHashMap<>();
     final var glamProgram = glamAccounts.program();
     final var glamFilter = List.of(StateAccount.DISCRIMINATOR_FILTER);
@@ -286,10 +307,6 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
 
   TxMonitorService transactionMonitorService() {
     return txMonitorService;
-  }
-
-  long confirmVoteTxAfterSeconds() {
-    return confirmVoteTxAfterSeconds;
   }
 
   ChainItemFormatter chainItemFormatter() {
@@ -432,17 +449,21 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
   public void run() {
     try {
       logger.log(INFO, "Starting service with key " + servicePublicKey.toBase58());
+      // Initial websocket connection.
+      webSocketManager.webSocket();
+      fetchDelegatedGlamsWithPermission();
+      webServer.fetchBalances(this.delegatedGlams);
+
       final var proposalVotes = readBallot();
       final int numProposals = proposalVotes.size();
 
       if (numProposals == 0) {
         logger.log(
-            INFO, String.format(
-                "No proposals configured in the ballot file %s, exiting.",
+            WARNING, String.format(
+                "No proposals configured in the ballot file %s.",
                 ballotFilePath.toAbsolutePath()
             )
         );
-        return;
       }
 
       final var recordedVotesMap = HashMap.<PublicKey, RecordedProposalVotes>newHashMap(numProposals);
@@ -456,18 +477,13 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
 
       final long nowEpochSeconds = Instant.now().getEpochSecond() + stopVotingSecondsBeforeEnd;
       if (proposalAccountStateMap.values().stream().allMatch(proposal -> cancelledOrEnded(proposal, nowEpochSeconds))) {
-        logger.log(INFO, "No pending or active proposals, truncating ballot file and exiting.");
+        logger.log(INFO, "No pending or active proposals, truncating ballot file.");
         try {
           Files.writeString(ballotFilePath, "[]", TRUNCATE_EXISTING, WRITE);
         } catch (final IOException e) {
           throw new UncheckedIOException(e);
         }
-        return;
       }
-
-      // Initial websocket connection.
-      webSocketManager.webSocket();
-      fetchDelegatedGlamsWithPermission();
 
       // Check for and handle service vote side changes.
       var proposalIterator = proposalVotes.iterator();
@@ -560,8 +576,7 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
         }
 
         if (proposalVotes.isEmpty()) {
-          logger.log(INFO, "No more pending or active proposals, exiting.");
-          return;
+          logger.log(INFO, "No pending or active proposals.");
         }
 
         final long continueAfter = System.currentTimeMillis() + delayMillis;
@@ -575,6 +590,7 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
 
         webSocketManager.checkConnection();
         fetchDelegatedGlamsWithPermission();
+        webServer.fetchBalances(this.delegatedGlams);
       }
     } catch (final InterruptedException e) {
       // exit.

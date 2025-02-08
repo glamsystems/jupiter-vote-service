@@ -128,6 +128,10 @@ See context below.
     "sig": "https://solscan.io/tx/%s",
     "address": "https://solscan.io/account/%s"
   },
+  "api": {
+    "basePath": "/api/v0/",
+    "port": 7073
+  },
   "notificationHooks": [
     {
       "endpoint": "https://hooks.slack.com/<URL_PATH_PROVIDED_BY_SLACK>",
@@ -194,7 +198,6 @@ See context below.
   },
   "minLockedToVote": 1,
   "stopVotingBeforeEndDuration": "42S",
-  "confirmVoteTxAfterDuration": "42S",
   "newVoteBatchSize": 3,
   "changeVoteBatchSize": 6
 }
@@ -203,7 +206,7 @@ See context below.
 <!-- TOC -->
 
 * [signingService](#signingservice)
-    * [Delegation Requirements](#delegation-requirements)
+  * [Delegation Requirements](#delegation-requirements)
 * [workDir](#workdir)
 * [ballotFilePath](#ballotfilepath)
 * [formatter](#formatter)
@@ -224,12 +227,7 @@ See context below.
 
 Service key used to pay for transactions.
 
-See [Sava KMS](https://github.com/sava-software/kms?tab=readme-ov-file#local-disk-to-in-memory) for some example
-options/implementations. The Google KMS dependency is not included in this base service, using that or providing your
-own will require building your own executable, but everything else can be used.
-
-The purpose is to separate signing operations so that this service does not have to be trusted with a private key and
-also so that transactions being signed may be independently audited.
+See [Sava KMS](https://sava.software/libraries/kms#service-configuration) for some example options and configuration.
 
 #### Delegation Requirements
 
@@ -269,41 +267,23 @@ TODO: Map text based side to int.
 ]
 ```
 
-### `formatter`
+### [`formatter`](https://sava.software/libraries/ravina#chain-item-formatter)
 
-Used to provide more convenient logging of accounts and transaction hashes.
+### [`notificationHooks`](https://sava.software/libraries/ravina#webhook-configuration)
+
+Detailed JSON messages will be POSTed to each webhook endpoint.
+
+### `api`
+
+Local webserver to provide service information.
 
 #### Defaults
 
 ```json
 {
-  "sig": "https://solscan.io/tx/%s",
-  "address": "https://solscan.io/account/%s"
+  "basePath": "/api/v0/",
+  "port": 7073
 }
-```
-
-### `notificationHooks`
-
-Detailed JSON messages will be POSTed to each webhook endpoint.
-
-Expected Messages:
-
-* TODO
-
-#### Slack Example
-
-```json
-[
-  {
-    "endpoint": "https://hooks.slack.com/services/...",
-    "bodyFormat": "{\"text\":\"%s\"}",
-    "capacity": {
-      "maxCapacity": 2,
-      "resetDuration": "1S",
-      "minCapacityDuration": "8S"
-    }
-  }
-]
 ```
 
 ### `rpcCallWeights`
@@ -327,9 +307,9 @@ class for which are supported.
 * `defaultCapacity`
 * `defaultBackoff`
 * `endpoints`: Array of RPC node configurations.
-    * `url`
-    * `capacity`: Overrides `defaultCapacity`
-    * `backoff`: Overrides `defaultBackoff`
+  * `url`
+  * `capacity`: Overrides `defaultCapacity`
+  * `backoff`: Overrides `defaultBackoff`
 
 #### Defaults
 

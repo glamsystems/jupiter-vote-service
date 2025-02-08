@@ -48,10 +48,10 @@ public record VoteServiceConfig(ChainItemFormatter chainItemFormatter,
                                 TableCacheConfig tableCacheConfig,
                                 Path workDir,
                                 Path ballotFilePath,
+                                ApiConfig apiConfig,
                                 ScheduleConfig scheduleConfig,
                                 BigDecimal minLockedToVote,
                                 Duration stopVotingBeforeEndDuration,
-                                Duration confirmVoteTxAfterDuration,
                                 int newVoteBatchSize,
                                 int changeVoteBatchSize) {
 
@@ -80,10 +80,10 @@ public record VoteServiceConfig(ChainItemFormatter chainItemFormatter,
     private TableCacheConfig tableCacheConfig;
     private Path workDir;
     private Path ballotFilePath;
+    private ApiConfig apiConfig;
     private ScheduleConfig scheduleConfig;
     private BigDecimal minLockedToVote;
     private Duration stopVotingBeforeEndDuration;
-    private Duration confirmVoteTxAfterDuration;
     private int newVoteBatchSize = 5;
     private int changeVoteBatchSize = 10;
 
@@ -124,14 +124,12 @@ public record VoteServiceConfig(ChainItemFormatter chainItemFormatter,
           tableCacheConfig == null ? TableCacheConfig.createDefault() : tableCacheConfig,
           workDir,
           ballotFilePath,
+          apiConfig == null ? ApiConfig.createDefault() : apiConfig,
           scheduleConfig,
           requireNonNullElse(minLockedToVote, BigDecimal.ONE),
           stopVotingBeforeEndDuration == null
               ? Duration.ofSeconds(60)
               : stopVotingBeforeEndDuration,
-          confirmVoteTxAfterDuration == null
-              ? Duration.ofSeconds(42)
-              : confirmVoteTxAfterDuration,
           Math.max(1, Math.min(Long.SIZE, newVoteBatchSize)),
           Math.max(1, Math.min(Long.SIZE, changeVoteBatchSize))
       );
@@ -202,20 +200,20 @@ public record VoteServiceConfig(ChainItemFormatter chainItemFormatter,
         workDir = Path.of(ji.readString()).toAbsolutePath();
       } else if (fieldEquals("ballotFilePath", buf, offset, len)) {
         ballotFilePath = Path.of(ji.readString()).toAbsolutePath();
+      } else if (fieldEquals("api", buf, offset, len)) {
+        apiConfig = ApiConfig.parseConfig(ji);
       } else if (fieldEquals("schedule", buf, offset, len)) {
         scheduleConfig = ScheduleConfig.parseConfig(ji);
       } else if (fieldEquals("minLockedToVote", buf, offset, len)) {
         minLockedToVote = ji.readBigDecimalDropZeroes();
       } else if (fieldEquals("stopVotingBeforeEndDuration", buf, offset, len)) {
         stopVotingBeforeEndDuration = parseDuration(ji);
-      } else if (fieldEquals("confirmVoteTxAfterDuration", buf, offset, len)) {
-        confirmVoteTxAfterDuration = parseDuration(ji);
       } else if (fieldEquals("newVoteBatchSize", buf, offset, len)) {
         newVoteBatchSize = ji.readInt();
       } else if (fieldEquals("changeVoteBatchSize", buf, offset, len)) {
         changeVoteBatchSize = ji.readInt();
       } else {
-        ji.skip();
+        throw new IllegalStateException("Unknown VoteServiceConfig field " + new String(buf, offset, len));
       }
       return true;
     }

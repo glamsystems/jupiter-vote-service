@@ -1,5 +1,6 @@
 module systems.glam.jupiter_vote_service {
   requires java.net.http;
+  requires jdk.httpserver;
 
   requires systems.comodal.json_iterator;
 
