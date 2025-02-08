@@ -16,12 +16,15 @@ import java.math.BigDecimal;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.ZonedDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 
 import static java.lang.System.Logger.Level.*;
 import static java.nio.file.StandardOpenOption.*;
+import static java.time.ZoneOffset.UTC;
 import static software.sava.rpc.json.http.client.SolanaRpcClient.MAX_MULTIPLE_ACCOUNTS;
 
 final class VoteServiceWebServer implements HttpHandler, AutoCloseable {
@@ -141,6 +144,8 @@ final class VoteServiceWebServer implements HttpHandler, AutoCloseable {
       }
     }
 
+    final var timestamp = ZonedDateTime.now(UTC).truncatedTo(ChronoUnit.SECONDS);
+
     final String medianString;
     if (numConstituents == 0) {
       medianString = "0";
@@ -151,16 +156,17 @@ final class VoteServiceWebServer implements HttpHandler, AutoCloseable {
           : (staked[middle] + staked[middle - 1]) >> 1;
       medianString = tokenContext.toDecimal(median).stripTrailingZeros().toPlainString();
     }
-    final var sumString = sum.stripTrailingZeros().toPlainString();
     final var responseJson = String.format("""
             {
               "staked": "%s",
               "median": "%s",
-              "numConstituents": %d
+              "numConstituents": %d,
+              "timestamp": "%s"
             }""",
-        sumString,
+        sum.stripTrailingZeros().toPlainString(),
         medianString,
-        numConstituents
+        numConstituents,
+        timestamp
     );
     summaryResponse = responseJson.getBytes();
 
@@ -173,8 +179,7 @@ final class VoteServiceWebServer implements HttpHandler, AutoCloseable {
     } catch (final IOException e) {
       logger.log(WARNING, String.format("Failed to write API summary to %s.", summaryFilePath), e);
     }
-    logger.log(INFO, String.format("%s %s is currently staked.", sumString, tokenContext.address())
-    );
+    logger.log(INFO, responseJson);
   }
 
   @Override
