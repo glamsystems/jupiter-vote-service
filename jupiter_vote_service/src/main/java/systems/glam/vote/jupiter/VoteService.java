@@ -5,12 +5,12 @@ import software.sava.anchor.programs.glam.GlamJupiterVoteClient;
 import software.sava.anchor.programs.glam.anchor.types.Integration;
 import software.sava.anchor.programs.glam.anchor.types.Permission;
 import software.sava.anchor.programs.glam.anchor.types.StateAccount;
-import software.sava.anchor.programs.glam_v0.anchor.types.FundAccount;
 import software.sava.anchor.programs.jupiter.JupiterAccounts;
 import software.sava.anchor.programs.jupiter.governance.anchor.types.Proposal;
 import software.sava.anchor.programs.jupiter.voter.anchor.types.Escrow;
 import software.sava.core.accounts.PublicKey;
 import software.sava.core.accounts.SolanaAccounts;
+import software.sava.core.rpc.Filter;
 import software.sava.kms.core.signing.SigningService;
 import software.sava.rpc.json.http.client.SolanaRpcClient;
 import software.sava.rpc.json.http.response.AccountInfo;
@@ -179,6 +179,8 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
   private final GlamAccountsCache glamAccountsCache;
   private final Path ballotFilePath;
   private final Path proposalsDirectory;
+  private final PublicKey glamProgram;
+  private final List<Filter> glamFilter;
   private final Map<PublicKey, StateAccount> delegatedGlams;
   private final RpcCaller rpcCaller;
   private final TransactionProcessor transactionProcessor;
@@ -226,8 +228,8 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
     this.ballotFilePath = ballotFilePath;
     this.glamAccountsCache = glamAccountsCache;
     this.delegatedGlams = new ConcurrentHashMap<>();
-    final var glamProgram = glamAccounts.program();
-    final var glamFilter = List.of(StateAccount.DISCRIMINATOR_FILTER);
+    this.glamProgram = glamAccounts.program();
+    this.glamFilter = List.of(StateAccount.DISCRIMINATOR_FILTER);
     this.webSocketHttpClient = HttpClient.newHttpClient();
     this.webSocketManager = WebSocketManager.createManager(
         webSocketHttpClient,
@@ -345,12 +347,9 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
   private void fetchDelegatedGlamsWithPermission() {
     logger.log(INFO, "Fetching all glam accounts.");
     final var glamAccounts = rpcCaller.courteousGet(
-        rpcClient -> rpcClient.getProgramAccounts(
-            glamAccountsCache.glamAccounts().program(),
-            List.of(FundAccount.DISCRIMINATOR_FILTER)
-        ),
+        rpcClient -> rpcClient.getProgramAccounts(glamProgram, glamFilter),
         rpcCaller.callWeights().getProgramAccounts(),
-        "rpcClient::getProgramAccounts"
+        "rpcClient::getGlamAccounts"
     );
 
     logger.log(INFO, String.format("Retrieved %d glam accounts.", glamAccounts.size()));
