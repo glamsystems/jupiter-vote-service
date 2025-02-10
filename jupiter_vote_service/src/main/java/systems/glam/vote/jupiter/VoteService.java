@@ -20,11 +20,11 @@ import software.sava.services.solana.alt.LookupTableCache;
 import software.sava.services.solana.config.ChainItemFormatter;
 import software.sava.services.solana.epoch.EpochInfoService;
 import software.sava.services.solana.remote.call.RpcCaller;
+import software.sava.services.solana.transactions.HeliusFeeProvider;
 import software.sava.services.solana.transactions.TransactionProcessor;
 import software.sava.services.solana.transactions.TxMonitorConfig;
 import software.sava.services.solana.transactions.TxMonitorService;
 import software.sava.services.solana.websocket.WebSocketManager;
-import software.sava.solana.web2.helius.client.http.HeliusClient;
 import software.sava.solana.web2.jupiter.client.http.request.JupiterTokenTag;
 import software.sava.solana.web2.jupiter.client.http.response.TokenContext;
 import software.sava.solana.web2.jupiter.client.http.response.TokenExtension;
@@ -140,7 +140,7 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
         workDir,
         rpcCaller,
         config.sendClients(),
-        config.heliusClient(),
+        config.feeProviders(),
         epochInfoService,
         config.websocketConfig(),
         config.txMonitorConfig(),
@@ -206,7 +206,7 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
                       final Path workDirectory,
                       final RpcCaller rpcCaller,
                       final LoadBalancer<SolanaRpcClient> sendClients,
-                      final LoadBalancer<HeliusClient> heliusClients,
+                      final LoadBalancer<HeliusFeeProvider> feeProviders,
                       final EpochInfoService epochInfoService,
                       final RemoteResourceConfig webSocketConfig,
                       final TxMonitorConfig txMonitorConfig,
@@ -246,7 +246,7 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
         formatter,
         rpcCaller.rpcClients(),
         sendClients,
-        heliusClients,
+        feeProviders,
         rpcCaller.callWeights(),
         webSocketManager
     );

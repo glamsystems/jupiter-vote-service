@@ -6,19 +6,20 @@ import software.sava.services.core.config.Parser;
 import software.sava.services.core.config.RemoteResourceConfig;
 import software.sava.services.core.config.ScheduleConfig;
 import software.sava.services.core.config.ServiceConfigUtil;
+import software.sava.services.core.net.http.WebHookConfig;
 import software.sava.services.core.remote.call.Backoff;
+import software.sava.services.core.remote.load_balance.BalancedItem;
 import software.sava.services.core.remote.load_balance.LoadBalancer;
 import software.sava.services.core.remote.load_balance.LoadBalancerConfig;
 import software.sava.services.core.request_capacity.CapacityConfig;
-import software.sava.services.net.http.WebHookConfig;
 import software.sava.services.solana.alt.TableCacheConfig;
 import software.sava.services.solana.config.ChainItemFormatter;
 import software.sava.services.solana.config.HeliusConfig;
 import software.sava.services.solana.epoch.EpochServiceConfig;
 import software.sava.services.solana.remote.call.CallWeights;
 import software.sava.services.solana.remote.call.RpcCaller;
+import software.sava.services.solana.transactions.HeliusFeeProvider;
 import software.sava.services.solana.transactions.TxMonitorConfig;
-import software.sava.solana.web2.helius.client.http.HeliusClient;
 import systems.comodal.jsoniter.JsonIterator;
 
 import java.io.IOException;
@@ -40,7 +41,7 @@ public record VoteServiceConfig(ChainItemFormatter chainItemFormatter,
                                 SigningServiceConfig signingServiceConfig,
                                 RpcCaller rpcCaller,
                                 LoadBalancer<SolanaRpcClient> sendClients,
-                                LoadBalancer<HeliusClient> heliusClient,
+                                LoadBalancer<HeliusFeeProvider> feeProviders,
                                 RemoteResourceConfig websocketConfig,
                                 EpochServiceConfig epochServiceConfig,
                                 TxMonitorConfig txMonitorConfig,
@@ -109,14 +110,20 @@ public record VoteServiceConfig(ChainItemFormatter chainItemFormatter,
         }
       }
 
-      final var heliusClient = heliusConfig.createHeliusClient(httpClient);
+      final var heliusClient = heliusConfig.createClient(httpClient);
+      final var balancedItem = BalancedItem.createItem(
+          new HeliusFeeProvider(heliusClient),
+          heliusConfig.capacityMonitor(),
+          requireNonNullElse(heliusConfig.backoff(), DEFAULT_NETWORK_BACKOFF)
+      );
+      final var heliusLoadBalancer = LoadBalancer.createBalancer(balancedItem);
 
       return new VoteServiceConfig(
           chainItemFormatter == null ? ChainItemFormatter.createDefault() : chainItemFormatter,
           signingServiceConfig,
           new RpcCaller(executorService, rpcClients, callWeights),
           requireNonNullElse(sendClients, rpcClients),
-          heliusClient,
+          heliusLoadBalancer,
           websocketConfig,
           epochServiceConfig == null ? EpochServiceConfig.createDefault() : epochServiceConfig,
           txMonitorConfig == null ? TxMonitorConfig.createDefault() : txMonitorConfig,
