@@ -164,9 +164,13 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
           } catch (final Throwable ex) {
             logger.log(ERROR, "Unhandled service failure.", ex);
           }
+        } catch (final Throwable ex) {
+          logger.log(ERROR, "Unhandled service failure.", ex);
         } finally {
           serviceExecutor.shutdownNow();
         }
+      } catch (final Throwable ex) {
+        logger.log(ERROR, "Unhandled service failure.", ex);
       } finally {
         executor.shutdownNow();
       }

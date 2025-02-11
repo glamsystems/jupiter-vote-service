@@ -35,22 +35,22 @@ final class VoteServiceWebServer implements HttpHandler, AutoCloseable {
   private final GlamAccountsCache glamAccountsCache;
   private final RpcCaller rpcCaller;
   private final TokenContext tokenContext;
-  private final Path summaryFilePath;
+  private final Path statsFilePath;
 
-  private volatile byte[] summaryResponse;
+  private volatile byte[] statsResponse;
 
   private VoteServiceWebServer(final HttpServer server,
                                final GlamAccountsCache glamAccountsCache,
                                final RpcCaller rpcCaller,
                                final TokenContext tokenContext,
-                               final Path summaryFilePath,
-                               final String summaryResponse) {
+                               final Path statsFilePath,
+                               final String statsResponse) {
     this.server = server;
     this.glamAccountsCache = glamAccountsCache;
     this.rpcCaller = rpcCaller;
     this.tokenContext = tokenContext;
-    this.summaryFilePath = summaryFilePath;
-    this.summaryResponse = summaryResponse.getBytes();
+    this.statsFilePath = statsFilePath;
+    this.statsResponse = statsResponse.getBytes();
   }
 
   static VoteServiceWebServer createServer(final ExecutorService executorService,
@@ -60,17 +60,17 @@ final class VoteServiceWebServer implements HttpHandler, AutoCloseable {
                                            final GlamAccountsCache glamAccountsCache,
                                            final RpcCaller rpcCaller,
                                            final TokenContext tokenContext) {
-    final var summaryFilePath = workDir.resolve(".summary.json");
-    final String summaryResponse;
-    if (Files.exists(summaryFilePath)) {
+    final var statsFilePath = workDir.resolve(".stats.json");
+    final String statsResponse;
+    if (Files.exists(statsFilePath)) {
       try {
-        summaryResponse = Files.readString(summaryFilePath);
+        statsResponse = Files.readString(statsFilePath);
       } catch (final IOException e) {
-        logger.log(ERROR, "Failed read api summary cache file " + summaryFilePath, e);
+        logger.log(ERROR, "Failed read api stats cache file " + statsFilePath, e);
         throw new UncheckedIOException(e);
       }
     } else {
-      summaryResponse = """
+      statsResponse = """
           {
             "staked": null
           }""";
@@ -85,10 +85,10 @@ final class VoteServiceWebServer implements HttpHandler, AutoCloseable {
           glamAccountsCache,
           rpcCaller,
           tokenContext,
-          summaryFilePath,
-          summaryResponse
+          statsFilePath,
+          statsResponse
       );
-      httpServer.createContext(apiPath + (apiPath.endsWith("/") ? "summary" : "/summary"), webServer);
+      httpServer.createContext(apiPath + (apiPath.endsWith("/") ? "stats" : "/stats"), webServer);
       return webServer;
     } catch (final IOException e) {
       logger.log(ERROR, "Failed start api web server on port " + port, e);
@@ -168,27 +168,29 @@ final class VoteServiceWebServer implements HttpHandler, AutoCloseable {
         numConstituents,
         timestamp
     );
-    summaryResponse = responseJson.getBytes();
+    statsResponse = responseJson.getBytes();
 
     try {
       Files.writeString(
-          summaryFilePath,
+          statsFilePath,
           responseJson,
           CREATE, TRUNCATE_EXISTING, WRITE
       );
     } catch (final IOException e) {
-      logger.log(WARNING, String.format("Failed to write API summary to %s.", summaryFilePath), e);
+      logger.log(WARNING, String.format("Failed to write API stats to %s.", statsFilePath), e);
     }
     logger.log(INFO, responseJson);
   }
 
   @Override
-  public void handle(final HttpExchange exchange) throws IOException {
-    exchange.getResponseHeaders().add("Content-Type", "application/json");
-    final var responseBytes = summaryResponse;
-    exchange.sendResponseHeaders(200, responseBytes.length);
+  public void handle(final HttpExchange exchange) {
     try (final var os = exchange.getResponseBody()) {
+      exchange.getResponseHeaders().add("Content-Type", "application/json");
+      final var responseBytes = statsResponse;
+      exchange.sendResponseHeaders(200, responseBytes.length);
       os.write(responseBytes);
+    } catch (final RuntimeException | IOException e) {
+      logger.log(ERROR, "Failed to write response.", e);
     }
   }
 
