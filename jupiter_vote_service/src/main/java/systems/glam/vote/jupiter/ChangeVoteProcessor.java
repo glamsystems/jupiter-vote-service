@@ -23,7 +23,16 @@ final class ChangeVoteProcessor extends VoteProcessor {
                       final GlamJupiterVoteClient[] voteClients,
                       final RecordedProposalVotes recordedProposalVotes,
                       final RecordedOptionVotes previousOptionVotes) {
-    super(voteService, proposalKey, proposal, side, voteClients, recordedProposalVotes, 1, voteService.changeVoteBatchSize());
+    super(
+        voteService,
+        proposalKey,
+        proposal,
+        side,
+        voteClients,
+        recordedProposalVotes,
+        1,
+        voteService.changeVoteBatchSize()
+    );
     this.previousSide = previousOptionVotes.side();
     this.previousOptionVotes = previousOptionVotes;
     this.previousVotesFile = previousOptionVotes.file();

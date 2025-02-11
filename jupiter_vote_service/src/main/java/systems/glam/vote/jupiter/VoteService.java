@@ -133,7 +133,6 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
         taskExecutor,
         delayMillis,
         solanaAccounts,
-        jupiterAccounts,
         glamAccounts,
         glamAccountsCache,
         config.ballotFilePath(),
@@ -144,6 +143,7 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
         epochInfoService,
         config.websocketConfig(),
         config.txMonitorConfig(),
+        config.maxLamportPriorityFee(),
         lookupTableCache,
         webServer,
         minLockedToVote,
@@ -185,6 +185,7 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
   private final RpcCaller rpcCaller;
   private final TransactionProcessor transactionProcessor;
   private final TxMonitorService txMonitorService;
+  private final BigDecimal maxLamportPriorityFee;
   private final HttpClient webSocketHttpClient;
   private final WebSocketManager webSocketManager;
   private final VoteServiceWebServer webServer;
@@ -199,7 +200,6 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
                       final ExecutorService executor,
                       final long delayMillis,
                       final SolanaAccounts solanaAccounts,
-                      final JupiterAccounts jupiterAccounts,
                       final GlamAccounts glamAccounts,
                       final GlamAccountsCache glamAccountsCache,
                       final Path ballotFilePath,
@@ -210,6 +210,7 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
                       final EpochInfoService epochInfoService,
                       final RemoteResourceConfig webSocketConfig,
                       final TxMonitorConfig txMonitorConfig,
+                      final BigDecimal maxLamportPriorityFee,
                       final LookupTableCache lookupTableCache,
                       final VoteServiceWebServer webServer,
                       final long minLockedToVote,
@@ -258,6 +259,7 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
         txMonitorConfig,
         transactionProcessor
     );
+    this.maxLamportPriorityFee = maxLamportPriorityFee;
     this.changeVoteBatchSize = changeVoteBatchSize;
   }
 
@@ -309,6 +311,10 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
 
   TxMonitorService transactionMonitorService() {
     return txMonitorService;
+  }
+
+  BigDecimal maxLamportPriorityFee() {
+    return maxLamportPriorityFee;
   }
 
   ChainItemFormatter chainItemFormatter() {

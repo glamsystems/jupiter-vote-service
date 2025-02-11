@@ -199,7 +199,8 @@ See context below.
   "minLockedToVote": 1,
   "stopVotingBeforeEndDuration": "42S",
   "newVoteBatchSize": 3,
-  "changeVoteBatchSize": 6
+  "changeVoteBatchSize": 6,
+  "maxSOLPriorityFee": 0.00042
 }
 ```
 
@@ -220,6 +221,7 @@ See context below.
 * [stopVotingBeforeEndDuration](#stopvotingbeforeendduration)
 * [newVoteBatchSize](#newvotebatchsize)
 * [changeVoteBatchSize](#changevotebatchsize)
+* [maxSOLPriorityFee](#maxSOLPriorityFee)
 
 <!-- TOC -->
 
@@ -384,3 +386,7 @@ Number of GLAM vaults to change votes for per transaction. Each vote change requ
 service will dynamically reduce this size if a transaction exceeds the size limit.
 
 Defaults to 10.
+
+### `maxSOLPriorityFee`
+
+Caps the maximum priority fee for all transactions within the system. Default is 0.00042 SOL.

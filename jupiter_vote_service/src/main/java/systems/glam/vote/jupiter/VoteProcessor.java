@@ -13,6 +13,7 @@ import software.sava.services.solana.remote.call.RpcCaller;
 import software.sava.services.solana.transactions.TransactionProcessor;
 import software.sava.services.solana.transactions.TxMonitorService;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -36,6 +37,7 @@ abstract class VoteProcessor {
   protected final RpcCaller rpcCaller;
   protected final TransactionProcessor transactionProcessor;
   protected final TxMonitorService txMonitorService;
+  private final BigDecimal maxLamportPriorityFee;
   protected final PublicKey proposalKey;
   protected final Proposal proposal;
   protected final int side;
@@ -69,6 +71,7 @@ abstract class VoteProcessor {
     this.rpcCaller = voteService.rpcCaller();
     this.transactionProcessor = voteService.transactionProcessor();
     this.txMonitorService = voteService.transactionMonitorService();
+    this.maxLamportPriorityFee = voteService.maxLamportPriorityFee();
     this.proposalKey = proposalKey;
     this.proposal = proposal;
     this.side = side;
@@ -246,7 +249,7 @@ abstract class VoteProcessor {
       return false;
     }
 
-    final var transaction = transactionProcessor.createTransaction(simulationFutures, simulationResult);
+    final var transaction = transactionProcessor.createTransaction(simulationFutures, maxLamportPriorityFee, simulationResult);
     long blockHashHeight = transactionProcessor.setBlockHash(transaction, simulationResult);
     if (Long.compareUnsigned(blockHashHeight, 0) <= 0) {
       final var blockHash = rpcCaller.courteousGet(

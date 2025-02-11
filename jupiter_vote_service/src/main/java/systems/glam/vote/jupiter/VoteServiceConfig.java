@@ -1,5 +1,6 @@
 package systems.glam.vote.jupiter;
 
+import software.sava.core.util.LamportDecimal;
 import software.sava.kms.core.signing.SigningServiceConfig;
 import software.sava.rpc.json.http.client.SolanaRpcClient;
 import software.sava.services.core.config.Parser;
@@ -54,7 +55,8 @@ public record VoteServiceConfig(ChainItemFormatter chainItemFormatter,
                                 BigDecimal minLockedToVote,
                                 Duration stopVotingBeforeEndDuration,
                                 int newVoteBatchSize,
-                                int changeVoteBatchSize) {
+                                int changeVoteBatchSize,
+                                BigDecimal maxLamportPriorityFee) {
 
   public static final Backoff DEFAULT_NETWORK_BACKOFF = Backoff.fibonacci(1, 21);
 
@@ -87,6 +89,7 @@ public record VoteServiceConfig(ChainItemFormatter chainItemFormatter,
     private Duration stopVotingBeforeEndDuration;
     private int newVoteBatchSize = 5;
     private int changeVoteBatchSize = 10;
+    private BigDecimal maxSOLPriorityFee;
 
     private Builder(final ExecutorService executorService, final HttpClient httpClient) {
       this.executorService = executorService;
@@ -138,7 +141,8 @@ public record VoteServiceConfig(ChainItemFormatter chainItemFormatter,
               ? Duration.ofSeconds(60)
               : stopVotingBeforeEndDuration,
           Math.max(1, Math.min(Long.SIZE, newVoteBatchSize)),
-          Math.max(1, Math.min(Long.SIZE, changeVoteBatchSize))
+          Math.max(1, Math.min(Long.SIZE, changeVoteBatchSize)),
+          LamportDecimal.fromBigDecimal(maxSOLPriorityFee == null ? new BigDecimal("0.00042") : maxSOLPriorityFee)
       );
     }
 
@@ -219,6 +223,8 @@ public record VoteServiceConfig(ChainItemFormatter chainItemFormatter,
         newVoteBatchSize = ji.readInt();
       } else if (fieldEquals("changeVoteBatchSize", buf, offset, len)) {
         changeVoteBatchSize = ji.readInt();
+      } else if (fieldEquals("maxSOLPriorityFee", buf, offset, len)) {
+        maxSOLPriorityFee = ji.readBigDecimalDropZeroes();
       } else {
         throw new IllegalStateException("Unknown VoteServiceConfig field " + new String(buf, offset, len));
       }
