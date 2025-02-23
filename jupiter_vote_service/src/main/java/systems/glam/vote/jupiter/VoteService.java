@@ -84,9 +84,24 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
         Map.of(TokenExtension.coingeckoId, "jupiter-exchange-solana")
     );
 
+    final var rpcClients = rpcCaller.rpcClients();
+    final var tableCacheConfig = config.tableCacheConfig();
+    final var lookupTableCache = LookupTableCache.createCache(
+        taskExecutor,
+        tableCacheConfig.initialCapacity(),
+        rpcClients
+    );
+    final long minLockedToVote = Math.max(1, tokenContext.fromDecimal(config.minLockedToVote()).longValue());
+
     final var solanaAccounts = SolanaAccounts.MAIN_NET;
     final var glamAccounts = GlamAccounts.MAIN_NET;
-    final var glamAccountsCache = GlamAccountsCache.createCache(solanaAccounts, glamAccounts, jupiterAccounts);
+    final var servicePublicKey = serviceKeyFuture.join();
+    final var glamAccountsCache = GlamAccountsCache.createCache(
+        solanaAccounts,
+        glamAccounts,
+        jupiterAccounts,
+        servicePublicKey
+    );
 
     final var workDir = config.workDir();
     final var apiConfig = config.apiConfig();
@@ -101,15 +116,6 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
     );
     webServer.start();
 
-    final var rpcClients = rpcCaller.rpcClients();
-    final var tableCacheConfig = config.tableCacheConfig();
-    final var lookupTableCache = LookupTableCache.createCache(
-        taskExecutor,
-        tableCacheConfig.initialCapacity(),
-        rpcClients
-    );
-
-    final long minLockedToVote = Math.max(1, tokenContext.fromDecimal(config.minLockedToVote()).longValue());
 
     final var epochInfoService = EpochInfoService.createService(config.epochServiceConfig(), rpcCaller);
 
@@ -123,8 +129,6 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
 
     logger.log(INFO, "Starting epoch info service.");
     serviceExecutor.execute(epochInfoService);
-
-    final var servicePublicKey = serviceKeyFuture.join();
 
     return new VoteService(
         config.chainItemFormatter(),

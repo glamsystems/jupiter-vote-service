@@ -14,15 +14,18 @@ import java.util.function.Function;
 public record GlamAccountsCache(SolanaAccounts solanaAccounts,
                                 GlamAccounts glamAccounts,
                                 JupiterAccounts jupiterAccounts,
+                                PublicKey servicePublicKey,
                                 Map<PublicKey, GlamJupiterVoteClient> escrowAccountsMap) implements Function<PublicKey, GlamJupiterVoteClient> {
 
   static GlamAccountsCache createCache(final SolanaAccounts solanaAccounts,
                                        final GlamAccounts glamAccounts,
-                                       final JupiterAccounts jupiterAccounts) {
+                                       final JupiterAccounts jupiterAccounts,
+                                       final PublicKey servicePublicKey) {
     return new GlamAccountsCache(
         solanaAccounts,
         glamAccounts,
         jupiterAccounts,
+        servicePublicKey,
         HashMap.newHashMap(512)
     );
   }
@@ -44,7 +47,8 @@ public record GlamAccountsCache(SolanaAccounts solanaAccounts,
     final var vaultAccount = GlamPDAs.vaultPDA(glamAccounts.program(), glamAccount).publicKey();
     return GlamJupiterVoteClient.createClient(
         solanaAccounts, jupiterAccounts, glamAccounts,
-        glamAccount, vaultAccount
+        glamAccount, vaultAccount,
+        servicePublicKey
     );
   }
 }

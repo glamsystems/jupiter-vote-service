@@ -69,7 +69,7 @@ final class ChangeVoteProcessor extends VoteProcessor {
                                    final PublicKey voteKey,
                                    final Instruction[] ixArray,
                                    final int index) {
-    ixArray[index] = voteClient.castVote(proposalKey, voteKey, side);
+    ixArray[index] = voteClient.castVote(proposalKey, voteKey, side, previousSide);
     return index + 1;
   }
 
