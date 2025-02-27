@@ -23,8 +23,8 @@ final class NewVoteProcessor extends VoteProcessor {
                                    final Instruction[] ixArray,
                                    final int index) {
     final var newVoteIx = voteClient.newVote(proposalKey, voteKey, voteService.servicePublicKey());
-    final var castVoteIx = voteClient.castVote(proposalKey, voteKey, side);
     ixArray[index] = newVoteIx;
+    final var castVoteIx = voteClient.castVote(proposalKey, voteKey, side);
     ixArray[index + 1] = castVoteIx;
     return index + 2;
   }

@@ -296,7 +296,7 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
   }
 
   boolean hasMinLockedToVote(final long amount) {
-    return Long.compareUnsigned(amount, minLockedToVote) < 0;
+    return Long.compareUnsigned(amount, minLockedToVote) >= 0;
   }
 
   boolean eligibleToVote(final Escrow escrow) {
@@ -329,6 +329,10 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
     return formatter;
   }
 
+  private static Set<PublicKey> TEST = Set.of(
+      PublicKey.fromBase58Encoded("Z3YVZJUyukxRTqQ8havbT3yfagSqfkZmk1iRHtDB9eU"),
+      PublicKey.fromBase58Encoded("HLdxEhEjKtDeNKRHrjHeVXTfQKc1ZtPWksy9EDke1vei")
+  );
 
   @Override
   public void accept(final AccountInfo<byte[]> accountInfo) {
@@ -345,13 +349,6 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
               )
           );
         }
-      } else {
-        logger.log(
-            WARNING, String.format(
-                "Delegate GLAM %s has not given the permission to %s.",
-                accountInfo.pubKey(), VOTE_PERMISSION
-            )
-        );
       }
     } catch (final RuntimeException ex) {
       logger.log(ERROR, "Failed to parse GLAM account " + accountInfo.pubKey(), ex);
@@ -404,7 +401,7 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
   }
 
   private static boolean cancelledOrEnded(final Proposal proposal, final long nowEpochSeconds) {
-    if (proposal.canceledAt() >= 0) {
+    if (proposal.canceledAt() > 0) {
       return true;
     } else {
       final long votingEndsAt = proposal.votingEndsAt();

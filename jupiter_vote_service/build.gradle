@@ -13,6 +13,8 @@ dependencies {
   implementation libs.sava.ravina.core
   implementation libs.sava.ravina.solana
   implementation libs.sava.kms.core
+
+  implementation libs.glam.ix.proxy
 }
 
 afterEvaluate {

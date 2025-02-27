@@ -13,5 +13,7 @@ module systems.glam.jupiter_vote_service {
   requires software.sava.ravina_solana;
   requires software.sava.kms_core;
 
+  requires systems.glam.ix_proxy;
+
   uses software.sava.kms.core.signing.SigningServiceFactory;
 }
