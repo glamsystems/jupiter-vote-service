@@ -182,6 +182,7 @@ abstract class VoteProcessor {
             GLAM %s does not have an escrow account.""", voteClient.glamKey()
         ));
       } else if (!voteService.eligibleToVote(escrow)) {
+        logger.log(WARNING, "Escrow is not eligible to vote: " + escrow);
         continue;
       }
 
