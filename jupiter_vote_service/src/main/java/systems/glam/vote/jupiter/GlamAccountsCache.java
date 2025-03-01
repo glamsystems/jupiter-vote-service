@@ -44,7 +44,7 @@ public record GlamAccountsCache(SolanaAccounts solanaAccounts,
 
   @Override
   public GlamJupiterVoteClient apply(final PublicKey glamAccount) {
-    final var vaultAccount = GlamPDAs.vaultPDA(glamAccounts.program(), glamAccount).publicKey();
+    final var vaultAccount = GlamPDAs.glamVaultPDA(glamAccounts.program(), glamAccount).publicKey();
     return GlamJupiterVoteClient.createClient(
         solanaAccounts, jupiterAccounts, glamAccounts,
         glamAccount, vaultAccount,
