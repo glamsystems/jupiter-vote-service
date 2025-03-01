@@ -300,9 +300,7 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
   }
 
   boolean eligibleToVote(final Escrow escrow) {
-    return escrow.isMaxLock()
-        && hasMinLockedToVote(escrow.amount())
-        && escrow.voteDelegate().equals(escrow.owner());
+    return hasMinLockedToVote(escrow.amount()) && escrow.voteDelegate().equals(escrow.owner());
   }
 
   PublicKey servicePublicKey() {

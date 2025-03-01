@@ -186,6 +186,10 @@ abstract class VoteProcessor {
         continue;
       }
 
+      if (!escrow.isMaxLock()) {
+        // TODO: calc voting power, make sure above min config.
+      }
+
       ix = appendInstructions(voteClient, voteKey, instructionArray, ix);
       ++batchSize;
       batchBitSet |= b;
