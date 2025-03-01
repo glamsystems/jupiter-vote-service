@@ -6,23 +6,15 @@ import software.sava.anchor.programs.jupiter.governance.anchor.types.Vote;
 import software.sava.core.accounts.PublicKey;
 import software.sava.core.tx.Instruction;
 
-import java.time.ZonedDateTime;
-
-import static java.time.ZoneOffset.UTC;
-
 final class NewVoteProcessor extends VoteProcessor {
-
-  private final long voteAccountMintRent;
 
   NewVoteProcessor(final VoteService voteService,
                    final PublicKey proposalKey,
                    final Proposal proposal,
                    final int side,
                    final GlamJupiterVoteClient[] voteClients,
-                   final RecordedProposalVotes recordedProposalVotes,
-                   final long voteAccountMintRent) {
-    super(voteService, proposalKey, proposal, side, voteClients, recordedProposalVotes, 3, voteService.newVoteBatchSize());
-    this.voteAccountMintRent = voteAccountMintRent;
+                   final RecordedProposalVotes recordedProposalVotes) {
+    super(voteService, proposalKey, proposal, side, voteClients, recordedProposalVotes, 2, voteService.newVoteBatchSize());
   }
 
   @Override
@@ -30,18 +22,13 @@ final class NewVoteProcessor extends VoteProcessor {
                                    final PublicKey voteKey,
                                    final Instruction[] ixArray,
                                    final int index) {
-    final var seed = ZonedDateTime.now(UTC).toString();
-    final var uninitializedVoteAccount = voteClient.createOffCurveGovAccountWithSeed(seed);
-    final var createVoteAccountIx = voteClient.createVoteAccountWithSeedIx(uninitializedVoteAccount, voteAccountMintRent);
-    ixArray[index] = createVoteAccountIx;
-
     final var newVoteIx = voteClient.newVote(proposalKey, voteKey, voteService.servicePublicKey());
-    ixArray[index + 1] = newVoteIx;
+    ixArray[index] = newVoteIx;
 
     final var castVoteIx = voteClient.castVote(proposalKey, voteKey, side);
-    ixArray[index + 2] = castVoteIx;
+    ixArray[index + 1] = castVoteIx;
 
-    return index + 3;
+    return index + 2;
   }
 
   @Override

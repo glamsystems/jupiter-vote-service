@@ -7,7 +7,6 @@ import software.sava.anchor.programs.glam.anchor.types.Permission;
 import software.sava.anchor.programs.glam.anchor.types.StateAccount;
 import software.sava.anchor.programs.jupiter.JupiterAccounts;
 import software.sava.anchor.programs.jupiter.governance.anchor.types.Proposal;
-import software.sava.anchor.programs.jupiter.governance.anchor.types.Vote;
 import software.sava.anchor.programs.jupiter.voter.anchor.types.Escrow;
 import software.sava.core.accounts.PublicKey;
 import software.sava.core.accounts.SolanaAccounts;
@@ -567,18 +566,13 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
               .toArray(GlamJupiterVoteClient[]::new);
 
           if (delegatedGlamClientsWithoutVote.length > 0) {
-            final var mintRent = rpcCaller.courteousGet(
-                rpcClient -> rpcClient.getMinimumBalanceForRentExemption(Vote.BYTES),
-                "rpcClient::getMinimumBalanceForVoteAccount"
-            );
             final var newVoteProcessor = new NewVoteProcessor(
                 this,
                 proposalKey,
                 proposal,
                 side,
                 delegatedGlamClientsWithoutVote,
-                recordedProposalVotes,
-                mintRent
+                recordedProposalVotes
             );
             newVoteProcessor.processVotes();
           }
