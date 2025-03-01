@@ -108,7 +108,13 @@ final class VoteServiceWebServer implements HttpHandler, AutoCloseable {
       return BigDecimal.ZERO;
     }
     final var escrowKeyList = List.copyOf(escrowKeyMap.keySet());
-    logger.log(INFO, String.format("Fetching %d escrow accounts.", numKeys));
+    logger.log(INFO, String.format("""
+                Fetching %d escrow accounts for the following GLAMs:
+                  * %s""",
+            numKeys,
+            escrowKeyMap.values().stream().map(PublicKey::toBase58).collect(Collectors.joining("\n  * "))
+        )
+    );
     final var escrowAccountInfos = rpcCaller.courteousGet(
         rpcClient -> rpcClient.getMultipleAccounts(escrowKeyList, Escrow.FACTORY),
         "rpcClient::getEscrowAccounts"
