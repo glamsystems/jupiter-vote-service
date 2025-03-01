@@ -3,7 +3,6 @@ package systems.glam.vote.jupiter;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
-import software.sava.anchor.programs.glam.GlamJupiterVoteClient;
 import software.sava.anchor.programs.glam.anchor.types.StateAccount;
 import software.sava.anchor.programs.jupiter.voter.anchor.types.Escrow;
 import software.sava.core.accounts.PublicKey;
@@ -18,9 +17,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
+import java.util.stream.Collectors;
 
 import static java.lang.System.Logger.Level.*;
 import static java.nio.file.StandardOpenOption.*;
@@ -101,11 +102,12 @@ final class VoteServiceWebServer implements HttpHandler, AutoCloseable {
     logger.log(INFO, String.format("API web server listening at %s.", server.getAddress()));
   }
 
-  private BigDecimal sumBatch(final List<PublicKey> escrowKeyList, final long[] staked, final int from) {
-    final int numKeys = escrowKeyList.size();
+  private BigDecimal sumBatch(final Map<PublicKey, PublicKey> escrowKeyMap, final long[] staked, final int from) {
+    final int numKeys = escrowKeyMap.size();
     if (numKeys == 0) {
       return BigDecimal.ZERO;
     }
+    final var escrowKeyList = List.copyOf(escrowKeyMap.keySet());
     logger.log(INFO, String.format("Fetching %d escrow accounts.", numKeys));
     final var escrowAccountInfos = rpcCaller.courteousGet(
         rpcClient -> rpcClient.getMultipleAccounts(escrowKeyList, Escrow.FACTORY),
@@ -115,32 +117,55 @@ final class VoteServiceWebServer implements HttpHandler, AutoCloseable {
     int i = from;
     var sum = BigDecimal.ZERO;
     for (final var accountInfo : escrowAccountInfos) {
+      escrowKeyMap.remove(accountInfo.pubKey());
       final var escrowAccount = accountInfo.data();
       final long amount = escrowAccount.amount();
       staked[i++] = amount;
       sum = sum.add(tokenContext.toDecimal(amount));
     }
+
+    final int numMissingEscrowAccounts = escrowKeyMap.size();
+    if (numMissingEscrowAccounts > 0) {
+      logger.log(WARNING, String.format("""
+                  Failed to find %d escrow accounts:
+                    * %s
+                  """,
+              numMissingEscrowAccounts,
+              escrowKeyMap.values().stream().map(PublicKey::toBase58).collect(Collectors.joining("\n  * "))
+          )
+      );
+    }
+
     return sum;
   }
 
   void fetchBalances(final Map<PublicKey, StateAccount> delegatedGlams) {
-    final var escrowKeyList = delegatedGlams.keySet().stream()
-        .map(glamAccountsCache::computeIfAbsent)
-        .map(GlamJupiterVoteClient::escrowKey)
-        .toList();
-    final int numConstituents = escrowKeyList.size();
+    final var escrowKeyMap = HashMap.<PublicKey, PublicKey>newHashMap(delegatedGlams.size());
+    for (final var glamKey : delegatedGlams.keySet()) {
+      final var voteClient = glamAccountsCache.computeIfAbsent(glamKey);
+      escrowKeyMap.put(voteClient.escrowKey(), glamKey);
+    }
+
+    final int numConstituents = escrowKeyMap.size();
 
     final long[] staked = new long[numConstituents];
 
     BigDecimal sum;
     if (numConstituents < MAX_MULTIPLE_ACCOUNTS) {
-      sum = sumBatch(escrowKeyList, staked, 0);
+      sum = sumBatch(escrowKeyMap, staked, 0);
     } else {
       sum = BigDecimal.ZERO;
+      final var escrowKeyMapBatch = HashMap.<PublicKey, PublicKey>newHashMap(MAX_MULTIPLE_ACCOUNTS);
+      final var iterator = escrowKeyMap.entrySet().iterator();
+
       for (int from = 0, to; from < numConstituents; from = to) {
         to = Math.min(numConstituents, from + MAX_MULTIPLE_ACCOUNTS);
-        final var escrowKeyListView = escrowKeyList.subList(from, to);
-        sum = sum.add(sumBatch(escrowKeyListView, staked, from));
+        for (int i = from; i < to; i++) {
+          final var next = iterator.next();
+          escrowKeyMap.put(next.getKey(), next.getValue());
+        }
+        sum = sum.add(sumBatch(escrowKeyMapBatch, staked, from));
+        escrowKeyMapBatch.clear();
       }
     }
 
