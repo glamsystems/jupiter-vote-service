@@ -329,11 +329,6 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
     return formatter;
   }
 
-  private static Set<PublicKey> TEST = Set.of(
-      PublicKey.fromBase58Encoded("Z3YVZJUyukxRTqQ8havbT3yfagSqfkZmk1iRHtDB9eU"),
-      PublicKey.fromBase58Encoded("HLdxEhEjKtDeNKRHrjHeVXTfQKc1ZtPWksy9EDke1vei")
-  );
-
   @Override
   public void accept(final AccountInfo<byte[]> accountInfo) {
     try {

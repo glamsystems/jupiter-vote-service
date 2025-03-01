@@ -14,7 +14,7 @@ if [[ "$javaVersion" -ne "$targetJavaVersion" ]]; then
   exit 3
 fi
 
-./gradlew clean --exclude-task=test ":$simpleProjectName:jlink" -PnoVersionTag=true
+./gradlew clean --no-daemon --exclude-task=test ":$simpleProjectName:jlink" -PnoVersionTag=true
 
 javaExe="$(pwd)/$simpleProjectName/build/$simpleProjectName/bin/java"
 readonly javaExe

@@ -9,7 +9,7 @@ readonly moduleName
 mainClass="systems.glam.vote.jupiter.VoteService"
 readonly mainClass
 
-jvmArgs="-server -XX:+UseZGC -Xms128M -Xmx896M"
+jvmArgs="-server -XX:+UseZGC -Xms128M -Xmx768M"
 logLevel="INFO";
 configFile="";
 dryRun="false";
