@@ -262,7 +262,7 @@ abstract class VoteProcessor {
 
     final var transaction = transactionProcessor.createTransaction(simulationFutures, maxLamportPriorityFee, simulationResult);
     long blockHashHeight = transactionProcessor.setBlockHash(transaction, simulationResult);
-    if (Long.compareUnsigned(blockHashHeight, 0) <= 0) {
+    if (blockHashHeight == 0) {
       final var blockHash = rpcCaller.courteousGet(
           rpcClient -> rpcClient.getLatestBlockHash(FINALIZED),
           "rpcClient::getLatestBlockHash"
@@ -321,6 +321,13 @@ abstract class VoteProcessor {
       return false;
     } else {
       persistVotes(Arrays.copyOfRange(votingFileBuffer, 2, 2 + keysByteLength));
+      logger.log(INFO, String.format("""
+                  FINALIZED %d vote instructions:
+                  %s
+                  """,
+              instructions.size(), formattedSig
+          )
+      );
       return true;
     }
   }
