@@ -8,6 +8,7 @@ import software.sava.anchor.programs.glam.anchor.types.StateAccount;
 import software.sava.anchor.programs.jupiter.JupiterAccounts;
 import software.sava.anchor.programs.jupiter.governance.anchor.types.Proposal;
 import software.sava.anchor.programs.jupiter.voter.anchor.types.Escrow;
+import software.sava.anchor.programs.jupiter.voter.anchor.types.Locker;
 import software.sava.core.accounts.PublicKey;
 import software.sava.core.accounts.SolanaAccounts;
 import software.sava.core.rpc.Filter;
@@ -15,6 +16,7 @@ import software.sava.kms.core.signing.SigningService;
 import software.sava.rpc.json.http.client.SolanaRpcClient;
 import software.sava.rpc.json.http.response.AccountInfo;
 import software.sava.services.core.config.RemoteResourceConfig;
+import software.sava.services.core.net.http.NotifyClient;
 import software.sava.services.core.remote.load_balance.LoadBalancer;
 import software.sava.services.solana.alt.LookupTableCache;
 import software.sava.services.solana.config.ChainItemFormatter;
@@ -68,6 +70,11 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
     final var rpcCaller = config.rpcCaller();
 
     final var jupiterAccounts = JupiterAccounts.MAIN_NET;
+    final var lockerFuture = rpcCaller.courteousCall(
+        rpcClient -> rpcClient.getAccountInfo(jupiterAccounts.lockerKey()),
+        "rpcClient::getLockerAccountInfo"
+    );
+
     final var tokenContext = new TokenContext(
         jupiterAccounts.jupTokenMint(),
         6,
@@ -116,6 +123,9 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
     );
     webServer.start();
 
+    final var lockerAccountInfo = lockerFuture.join();
+    final var locker = Locker.read(lockerAccountInfo);
+    final var lockerParams = locker.params();
 
     final var epochInfoService = EpochInfoService.createService(config.epochServiceConfig(), rpcCaller);
 
@@ -149,8 +159,10 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
         config.txMonitorConfig(),
         config.maxLamportPriorityFee(),
         lookupTableCache,
+        config.notifyClient(),
         webServer,
         minLockedToVote,
+        lockerParams.maxStakeDuration(),
         config.stopVotingBeforeEndDuration(),
         config.newVoteBatchSize(),
         config.changeVoteBatchSize()
@@ -196,8 +208,10 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
   private final BigDecimal maxLamportPriorityFee;
   private final HttpClient webSocketHttpClient;
   private final WebSocketManager webSocketManager;
+  private final NotifyClient notifyClient;
   private final VoteServiceWebServer webServer;
   private final long minLockedToVote;
+  private final double unstakeDurationSeconds;
   private final long stopVotingSecondsBeforeEnd;
   private int newVoteBatchSize;
   private int changeVoteBatchSize;
@@ -220,8 +234,10 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
                       final TxMonitorConfig txMonitorConfig,
                       final BigDecimal maxLamportPriorityFee,
                       final LookupTableCache lookupTableCache,
+                      final NotifyClient notifyClient,
                       final VoteServiceWebServer webServer,
                       final long minLockedToVote,
+                      final long unstakeDurationSeconds,
                       final Duration stopVotingBeforeEndDuration,
                       final int newVoteBatchSize,
                       final int changeVoteBatchSize) {
@@ -230,8 +246,10 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
     this.delayMillis = delayMillis;
     this.proposalsDirectory = workDirectory.resolve(".proposals");
     this.rpcCaller = rpcCaller;
+    this.notifyClient = notifyClient;
     this.webServer = webServer;
     this.minLockedToVote = minLockedToVote;
+    this.unstakeDurationSeconds = unstakeDurationSeconds;
     this.stopVotingSecondsBeforeEnd = stopVotingBeforeEndDuration.toSeconds();
     this.newVoteBatchSize = newVoteBatchSize;
     this.ballotFilePath = ballotFilePath;
@@ -271,6 +289,10 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
     this.changeVoteBatchSize = changeVoteBatchSize;
   }
 
+  void postNotification(final String msg) {
+    notifyClient.postMsg(msg);
+  }
+
   int newVoteBatchSize() {
     return newVoteBatchSize;
   }
@@ -300,7 +322,32 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
   }
 
   boolean eligibleToVote(final Escrow escrow) {
-    return hasMinLockedToVote(escrow.amount()) && escrow.voteDelegate().equals(escrow.owner());
+    final long stakedAmount = escrow.amount();
+    if (!hasMinLockedToVote(stakedAmount)) {
+      // Arbitrary limit set via config to avoid paying fees for trivially sized vaults.
+      return false;
+    } else if (!escrow.voteDelegate().equals(escrow.owner())) {
+      // Vote delegate must equal the vault.
+      logger.log(WARNING, String.format("""
+                  Escrow has set a vote delegate:
+                    * Escrow: %s
+                    * Escrow Owner / GLAM Vault: %s
+                    * Vote Delegate: %s
+                  """,
+              escrow._address(),
+              escrow.owner(),
+              escrow.voteDelegate()
+          )
+      );
+      return false;
+    } else if (!escrow.isMaxLock()) {
+      final long secondsRemaining = escrow.escrowEndsAt() - Instant.now().getEpochSecond();
+      final double percentRemaining = secondsRemaining / unstakeDurationSeconds;
+      final double votingPower = stakedAmount * percentRemaining;
+      return hasMinLockedToVote((long) votingPower);
+    } else {
+      return true;
+    }
   }
 
   PublicKey servicePublicKey() {
@@ -448,7 +495,7 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
   }
 
   @Override
-  @SuppressWarnings({"BusyWait"})
+  @SuppressWarnings({"BusyWait", "InfiniteLoopStatement"})
   public void run() {
     try {
       logger.log(INFO, "Starting service with key " + servicePublicKey.toBase58());

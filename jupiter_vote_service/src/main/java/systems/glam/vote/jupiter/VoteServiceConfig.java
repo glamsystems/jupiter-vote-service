@@ -7,12 +7,16 @@ import software.sava.services.core.config.Parser;
 import software.sava.services.core.config.RemoteResourceConfig;
 import software.sava.services.core.config.ScheduleConfig;
 import software.sava.services.core.config.ServiceConfigUtil;
+import software.sava.services.core.net.http.NotifyClient;
+import software.sava.services.core.net.http.WebHookClient;
 import software.sava.services.core.net.http.WebHookConfig;
 import software.sava.services.core.remote.call.Backoff;
+import software.sava.services.core.remote.call.ClientCaller;
 import software.sava.services.core.remote.load_balance.BalancedItem;
 import software.sava.services.core.remote.load_balance.LoadBalancer;
 import software.sava.services.core.remote.load_balance.LoadBalancerConfig;
 import software.sava.services.core.request_capacity.CapacityConfig;
+import software.sava.services.core.request_capacity.context.CallContext;
 import software.sava.services.solana.alt.TableCacheConfig;
 import software.sava.services.solana.config.ChainItemFormatter;
 import software.sava.services.solana.config.HeliusConfig;
@@ -46,7 +50,7 @@ public record VoteServiceConfig(ChainItemFormatter chainItemFormatter,
                                 RemoteResourceConfig websocketConfig,
                                 EpochServiceConfig epochServiceConfig,
                                 TxMonitorConfig txMonitorConfig,
-                                List<WebHookConfig> webHookConfigs,
+                                NotifyClient notifyClient,
                                 TableCacheConfig tableCacheConfig,
                                 Path workDir,
                                 Path ballotFilePath,
@@ -60,13 +64,13 @@ public record VoteServiceConfig(ChainItemFormatter chainItemFormatter,
 
   public static final Backoff DEFAULT_NETWORK_BACKOFF = Backoff.fibonacci(1, 21);
 
-  public static VoteServiceConfig loadConfig(final ExecutorService executorService, final HttpClient rpcHttpClient) {
-    return ServiceConfigUtil.loadConfig(VoteServiceConfig.class, new Builder(executorService, rpcHttpClient));
+  public static VoteServiceConfig loadConfig(final ExecutorService taskExecutor, final HttpClient rpcHttpClient) {
+    return ServiceConfigUtil.loadConfig(VoteServiceConfig.class, new Builder(taskExecutor, rpcHttpClient));
   }
 
   private static final class Builder implements Parser<VoteServiceConfig> {
 
-    private final ExecutorService executorService;
+    private final ExecutorService taskExecutor;
     private final HttpClient httpClient;
 
     private ChainItemFormatter chainItemFormatter;
@@ -91,8 +95,8 @@ public record VoteServiceConfig(ChainItemFormatter chainItemFormatter,
     private int changeVoteBatchSize = 10;
     private BigDecimal maxSOLPriorityFee;
 
-    private Builder(final ExecutorService executorService, final HttpClient httpClient) {
-      this.executorService = executorService;
+    private Builder(final ExecutorService taskExecutor, final HttpClient httpClient) {
+      this.taskExecutor = taskExecutor;
       this.httpClient = httpClient;
     }
 
@@ -121,16 +125,25 @@ public record VoteServiceConfig(ChainItemFormatter chainItemFormatter,
       );
       final var heliusLoadBalancer = LoadBalancer.createBalancer(balancedItem);
 
+      final var webHookClients = webHookConfigs == null ? List.<ClientCaller<WebHookClient>>of() : webHookConfigs.stream()
+          .map(webHookConfig -> webHookConfig.createCaller(httpClient))
+          .toList();
+      final var notifyClient = NotifyClient.createClient(
+          taskExecutor,
+          webHookClients,
+          CallContext.createContext(1, 0, 8, true, 5, false)
+      );
+
       return new VoteServiceConfig(
           chainItemFormatter == null ? ChainItemFormatter.createDefault() : chainItemFormatter,
           signingServiceConfig,
-          new RpcCaller(executorService, rpcClients, callWeights),
+          new RpcCaller(taskExecutor, rpcClients, callWeights),
           requireNonNullElse(sendClients, rpcClients),
           heliusLoadBalancer,
           websocketConfig,
           epochServiceConfig == null ? EpochServiceConfig.createDefault() : epochServiceConfig,
           txMonitorConfig == null ? TxMonitorConfig.createDefault() : txMonitorConfig,
-          webHookConfigs == null ? List.of() : webHookConfigs,
+          notifyClient,
           tableCacheConfig == null ? TableCacheConfig.createDefault() : tableCacheConfig,
           workDir,
           ballotFilePath,
@@ -149,7 +162,7 @@ public record VoteServiceConfig(ChainItemFormatter chainItemFormatter,
     @Override
     public boolean test(final char[] buf, final int offset, final int len, final JsonIterator ji) {
       if (fieldEquals("signingService", buf, offset, len)) {
-        signingServiceConfig = SigningServiceConfig.parseConfig(executorService, DEFAULT_NETWORK_BACKOFF, ji);
+        signingServiceConfig = SigningServiceConfig.parseConfig(taskExecutor, DEFAULT_NETWORK_BACKOFF, ji);
       } else if (fieldEquals("formatter", buf, offset, len)) {
         chainItemFormatter = ChainItemFormatter.parseFormatter(ji);
       } else if (fieldEquals("notificationHooks", buf, offset, len)) {

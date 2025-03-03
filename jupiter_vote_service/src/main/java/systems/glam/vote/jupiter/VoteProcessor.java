@@ -168,7 +168,9 @@ abstract class VoteProcessor {
       if (userVoted(existingVoteAccount)) {
         recordedProposalVotes.persistUserVoteOverride(glamKey);
         continue;
-      } else if (existingVoteAccount != null && existingVoteAccount.side() == side) {
+      }
+
+      if (existingVoteAccount != null && existingVoteAccount.side() == side) {
         // Can happen if a service vote change was interrupted.
         // Once this processor is complete it will be cleared from the previous file.
         // It has already been persisted in this vote side file during start up recovery.
@@ -177,17 +179,21 @@ abstract class VoteProcessor {
 
       final var escrow = escrowMap.get(voteClient.escrowKey());
       if (escrow == null) {
-        // TODO: Send alert that glam does not have an escrow account and add an ignore list.
-        throw new IllegalStateException(String.format("""
-            GLAM %s does not have an escrow account.""", voteClient.glamKey()
-        ));
-      } else if (!voteService.eligibleToVote(escrow)) {
-        logger.log(WARNING, "Escrow is not eligible to vote: " + escrow);
+        final var msg = String.format("""
+                {
+                  "event": "Delegated GLAM does not have Escrow.",
+                  "escrowKey": "%s",
+                  "glamStateKey": "%s"
+                }""",
+            voteClient.escrowKey(),
+            voteClient.glamKey()
+        );
+        voteService.postNotification(msg);
         continue;
       }
 
-      if (!escrow.isMaxLock()) {
-        // TODO: calc voting power, make sure above min config.
+      if (!voteService.eligibleToVote(escrow)) {
+        continue;
       }
 
       ix = appendInstructions(voteClient, voteKey, instructionArray, ix);
