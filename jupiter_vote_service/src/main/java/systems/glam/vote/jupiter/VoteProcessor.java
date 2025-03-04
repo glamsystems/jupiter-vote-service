@@ -164,6 +164,12 @@ abstract class VoteProcessor {
       final var existingVoteAccount = voteMap.get(voteKey);
       if (userVoted(existingVoteAccount)) {
         recordedProposalVotes.persistUserVoteOverride(glamKey);
+        logger.log(INFO, String.format("""
+                    Inferring that GLAM %s has overridden the vote for this proposal %s because a Vote account already exists.
+                    """,
+                glamKey, proposalKey
+            )
+        );
         continue;
       }
 
@@ -356,7 +362,14 @@ abstract class VoteProcessor {
               if ((ixIndex & 1) == 0) { // Govern Program: newVote
                 // TODO: explicit error code check for this case.
                 final var voteClient = voteClients[voteClientIndex + ((ixIndex >> 1) - 1)];
-                recordedProposalVotes.persistUserVoteOverride(voteClient.glamKey());
+                final var glamKey = voteClient.glamKey();
+                recordedProposalVotes.persistUserVoteOverride(glamKey);
+                logger.log(INFO, String.format("""
+                            Inferring that GLAM %s has overridden the vote for this proposal %s because failed to create a new Vote account.
+                            """,
+                        glamKey, proposalKey
+                    )
+                );
                 return;
               } // else { // Govern Program: newVote
             }

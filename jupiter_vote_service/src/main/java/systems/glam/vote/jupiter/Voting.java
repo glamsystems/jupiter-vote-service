@@ -16,11 +16,15 @@ import java.io.UncheckedIOException;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import static java.lang.System.Logger.Level.INFO;
+
 /// In-memory state is only used on startup to handle recovery if the process was killed before confirming a transaction.
 record Voting(int side,
               Set<PublicKey> keys,
               String txSig,
               RandomAccessFile file) {
+
+  private static final System.Logger logger = System.getLogger(Voting.class.getName());
 
   static Voting readVotingFile(final RandomAccessFile file) throws IOException {
     final byte[] buffer = RecordedProposalVotes.readFully(file);
@@ -107,7 +111,13 @@ record Voting(int side,
               recordedProposalVotes.persistVoted(glamKey, side);
               // If the service was changing this vote it will be cleared from the previous vote file by the vote service.
             } else if (!recordedProposalVotes.serviceVotedFor(glamKey, onChainSide)) {
-              recordedProposalVotes.persistUserVoteOverride(voteClient.glamKey());
+              recordedProposalVotes.persistUserVoteOverride(glamKey);
+              logger.log(INFO, String.format("""
+                          Inferring that GLAM %s has overridden the vote for this proposal %s because the Vote account retrieved after recovery does not match what the service was voting for despite the vote transaction landing.
+                          """,
+                      glamKey, proposalKey
+                  )
+              );
             }
           }
         }
