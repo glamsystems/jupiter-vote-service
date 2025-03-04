@@ -6,6 +6,8 @@ import software.sava.anchor.programs.jupiter.governance.anchor.types.Vote;
 import software.sava.core.accounts.PublicKey;
 import software.sava.core.tx.Instruction;
 
+import java.util.Collection;
+
 final class NewVoteProcessor extends VoteProcessor {
 
   NewVoteProcessor(final VoteService voteService,
@@ -42,7 +44,7 @@ final class NewVoteProcessor extends VoteProcessor {
   }
 
   @Override
-  protected void persistVotes(final byte[] glamKeys) {
+  protected void persistVotes(final Collection<PublicKey> glamKeys) {
     recordedProposalVotes.persistVoted(glamKeys, side);
     for (int i = resetBatchClientIndex, bs = 1; i < voteClientIndex; ++i, bs <<= 1) {
       if ((batchBitSet & bs) == bs) {

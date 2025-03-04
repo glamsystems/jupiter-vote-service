@@ -15,10 +15,7 @@ import software.sava.services.solana.transactions.TxMonitorService;
 
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Supplier;
 
 import static java.lang.System.Logger.Level.*;
@@ -91,7 +88,7 @@ abstract class VoteProcessor {
                                             final Instruction[] ixArray,
                                             final int index);
 
-  protected abstract void persistVotes(final byte[] glamKeys);
+  protected abstract void persistVotes(final Collection<PublicKey> glamKeys);
 
   final void processVotes() throws InterruptedException {
     final int numGlams = voteClients.length;
@@ -240,13 +237,16 @@ abstract class VoteProcessor {
         )
     );
 
+    final var keys = new ArrayList<PublicKey>(batchSize);
     final int keysByteLength = batchSize * PUBLIC_KEY_LENGTH;
     final byte[] votingFileBuffer = new byte[2 + keysByteLength + SIGNATURE_LENGTH];
     votingFileBuffer[0] = (byte) side;
     votingFileBuffer[1] = (byte) batchSize;
     for (int i = resetBatchClientIndex, offset = 2, bs = 1; i < voteClientIndex; ++i, bs <<= 1) {
       if ((batchBitSet & bs) == bs) {
-        voteClients[i].glamKey().write(votingFileBuffer, offset);
+        final var glamKey = voteClients[i].glamKey();
+        keys.add(glamKey);
+        glamKey.write(votingFileBuffer, offset);
         offset += PUBLIC_KEY_LENGTH;
       }
     }
@@ -320,7 +320,7 @@ abstract class VoteProcessor {
       handleError(error, () -> transactionProcessor.formatTxResult(txSig, txResult));
       return false;
     } else {
-      persistVotes(Arrays.copyOfRange(votingFileBuffer, 2, 2 + keysByteLength));
+      persistVotes(keys);
       logger.log(INFO, String.format("""
                   FINALIZED %d vote instructions:
                   %s

@@ -9,6 +9,7 @@ import software.sava.core.tx.Instruction;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.io.UncheckedIOException;
+import java.util.Collection;
 
 final class ChangeVoteProcessor extends VoteProcessor {
 
@@ -74,7 +75,7 @@ final class ChangeVoteProcessor extends VoteProcessor {
   }
 
   @Override
-  protected void persistVotes(final byte[] glamKeys) {
+  protected void persistVotes(final Collection<PublicKey> glamKeys) {
     // At this point the glam has been voted for by the service or themselves so clear previous service vote regardless.
     // If they voted themselves it has been recorded in the override file.
     // If the service has voted it still is recorded in the voting file in case there is a server failure in-between

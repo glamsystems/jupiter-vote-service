@@ -8,8 +8,10 @@ import java.io.RandomAccessFile;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 record RecordedProposalVotes(Set<PublicKey> overrides,
                              RandomAccessFile overridesFile,
@@ -29,13 +31,30 @@ record RecordedProposalVotes(Set<PublicKey> overrides,
     return !overrides.contains(glamKey) && !optionVotes[side].votedFor(glamKey);
   }
 
-  void persistUserVoteOverride(final PublicKey glamKey) {
-    overrides.add(glamKey);
+  static void writeBase58Key(final RandomAccessFile file, final PublicKey key) {
     try {
-      overridesFile.write(glamKey.toByteArray());
+      file.write(key.toBase58().getBytes());
+      file.write('\n');
     } catch (final IOException e) {
       throw new UncheckedIOException(e);
     }
+  }
+
+  static void writeBase58Keys(final RandomAccessFile file, final Collection<PublicKey> keys) {
+    final byte[] keyData = keys.stream()
+        .map(PublicKey::toBase58)
+        .collect(Collectors.joining("\n", "", "\n"))
+        .getBytes();
+    try {
+      file.write(keyData);
+    } catch (final IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
+
+  void persistUserVoteOverride(final PublicKey glamKey) {
+    overrides.add(glamKey);
+    writeBase58Key(overridesFile, glamKey);
   }
 
   void trackVoted(final PublicKey glamKey, final int side) {
@@ -46,7 +65,7 @@ record RecordedProposalVotes(Set<PublicKey> overrides,
     optionVotes[side].persistVoted(glamKey);
   }
 
-  void persistVoted(final byte[] glamKeys, final int side) {
+  void persistVoted(final Collection<PublicKey> glamKeys, final int side) {
     optionVotes[side].persistVoted(glamKeys);
   }
 
@@ -61,24 +80,23 @@ record RecordedProposalVotes(Set<PublicKey> overrides,
     return buffer;
   }
 
-  static Set<PublicKey> readKeyFile(final RandomAccessFile keyFile) throws IOException {
-    final byte[] buffer = readFully(keyFile);
-    final int length = buffer.length;
+  static Set<PublicKey> readBase58KeyFile(final RandomAccessFile keyFile) throws IOException {
+    final int length = (int) keyFile.length();
     final int numKeys = length / PublicKey.PUBLIC_KEY_LENGTH;
-    final var keys = HashSet.<PublicKey>newHashSet(numKeys << 1);
-    for (int i = 0; i < length; i += PublicKey.PUBLIC_KEY_LENGTH) {
-      final var key = PublicKey.readPubKey(buffer, i);
+    final var keys = HashSet.<PublicKey>newHashSet(numKeys);
+    for (String line; (line = keyFile.readLine()) != null; ) {
+      final var key = PublicKey.fromBase58Encoded(line);
       keys.add(key);
     }
     return keys;
   }
 
-  static final String VOTES_SUFFIX = ".vote";
+  static final String VOTES_SUFFIX = ".vote.json";
 
   static RecordedProposalVotes createRecord(final Path proposalsDirectory, final ProposalVote proposalVote) {
     final var proposal = proposalVote.proposal();
     final var proposalDir = proposalsDirectory.resolve(proposal.toBase58());
-    final var overridesFilePath = proposalDir.resolve("overridden.glams");
+    final var overridesFilePath = proposalDir.resolve("overridden.glams.json");
     final var votingFilePath = proposalDir.resolve("voting.glams");
     final var voteFilePath = proposalDir.resolve(proposalVote.side() + VOTES_SUFFIX);
     try {
@@ -100,7 +118,7 @@ record RecordedProposalVotes(Set<PublicKey> overrides,
       }
 
       final var overridesFile = new RandomAccessFile(overridesFilePath.toFile(), "rwd");
-      final var overrides = readKeyFile(overridesFile);
+      final var overrides = readBase58KeyFile(overridesFile);
       final var votingFile = new RandomAccessFile(votingFilePath.toFile(), "rwd");
       final var voting = Voting.readVotingFile(votingFile);
 
