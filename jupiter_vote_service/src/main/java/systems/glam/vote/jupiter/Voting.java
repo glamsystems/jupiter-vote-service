@@ -4,6 +4,7 @@ import software.sava.anchor.programs.glam.GlamJupiterVoteClient;
 import software.sava.anchor.programs.glam.anchor.types.StateAccount;
 import software.sava.anchor.programs.jupiter.governance.anchor.types.Vote;
 import software.sava.core.accounts.PublicKey;
+import software.sava.core.encoding.Base58;
 import software.sava.core.tx.Transaction;
 import software.sava.rpc.json.http.request.Commitment;
 import software.sava.rpc.json.http.response.AccountInfo;
@@ -35,6 +36,14 @@ record Voting(int side,
       return new Voting(-1, null, null, file);
     }
 
+    if (buffer.length != expectedLength) {
+      throw new IllegalStateException(String.format("""
+              Unexpected voting file length %d for %d keys.
+              """,
+          buffer.length, numKeys
+      ));
+    }
+
     final var keys = HashSet.<PublicKey>newHashSet(numKeys);
     int i = 2;
     for (int k = 0; k < numKeys; ++k, i += PublicKey.PUBLIC_KEY_LENGTH) {
@@ -42,7 +51,7 @@ record Voting(int side,
       keys.add(key);
     }
 
-    final var txSig = new String(buffer, i, Transaction.SIGNATURE_LENGTH);
+    final var txSig = Base58.encode(buffer, i, i + Transaction.SIGNATURE_LENGTH);
     return new Voting(side, keys, txSig, file);
   }
 
