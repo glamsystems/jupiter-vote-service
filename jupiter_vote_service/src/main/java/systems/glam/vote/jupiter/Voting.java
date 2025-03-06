@@ -100,14 +100,20 @@ record Voting(int side,
         ).stream().collect(Collectors.toUnmodifiableMap(AccountInfo::pubKey, AccountInfo::data));
 
         final var tx = txFuture.join();
-        final var txLanded = tx != null && tx.meta().error() == null;
+        final boolean txExecutedSuccessfully;
+        if (tx != null) {
+          final var txMeta = tx.meta();
+          txExecutedSuccessfully = txMeta != null && txMeta.error() == null;
+        } else {
+          txExecutedSuccessfully = false;
+        }
         for (final var voteClient : votingGlamClients) {
           final var voteAccountKey = voteClient.deriveVoteKey(proposalKey);
           final var voteAccount = voteAccounts.get(voteAccountKey);
           if (voteAccount != null) {
             final var glamKey = voteClient.glamKey();
             final int onChainSide = voteAccount.side();
-            if (txLanded && onChainSide == side) {
+            if (txExecutedSuccessfully && onChainSide == side) {
               recordedProposalVotes.persistVoted(glamKey, side);
               // If the service was changing this vote it will be cleared from the previous vote file by the vote service.
             } else if (!recordedProposalVotes.serviceVotedFor(glamKey, onChainSide)) {

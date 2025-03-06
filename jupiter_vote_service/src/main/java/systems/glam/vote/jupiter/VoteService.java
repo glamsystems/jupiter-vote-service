@@ -553,7 +553,6 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
         final var proposal = proposalAccountStateMap.get(proposalKey);
         if (inActiveProposal(proposalKey, proposal, proposalIterator)) {
           writeBallotFile(proposalVotes);
-          logger.log(INFO, String.format("Removed inactive proposal %s from ballot file.", proposalKey.toBase58()));
           continue;
         }
 
@@ -600,7 +599,6 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
           final var proposal = proposalAccountStateMap.get(proposalKey);
           if (inActiveProposal(proposalKey, proposal, proposalIterator)) {
             writeBallotFile(proposalVotes);
-            logger.log(INFO, String.format("Removed inactive proposal %s from ballot file.", proposalKey.toBase58()));
             continue;
           }
 
