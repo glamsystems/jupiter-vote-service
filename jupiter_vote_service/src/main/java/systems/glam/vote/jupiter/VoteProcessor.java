@@ -166,55 +166,57 @@ abstract class VoteProcessor {
     ix = 0;
     batchBitSet = 0;
 
-    for (int b = 1; voteKeyIndex < voteKeys.length; b <<= 1) {
-      final var voteClient = voteClients[voteClientIndex++];
-      final var glamKey = voteClient.glamKey();
-      final var voteKey = voteKeys[voteKeyIndex++];
-      if (recordedProposalVotes.didUserOverrideVote(glamKey)) {
-        continue;
-      }
+    for (int b = 1; ; b = b == 0 ? 1 : b << 1) {
+      if (voteKeyIndex < voteKeys.length) {
+        final var voteClient = voteClients[voteClientIndex++];
+        final var glamKey = voteClient.glamKey();
+        final var voteKey = voteKeys[voteKeyIndex++];
+        if (recordedProposalVotes.didUserOverrideVote(glamKey)) {
+          continue;
+        }
 
-      final var existingVoteAccount = voteMap.get(voteKey);
-      if (userVoted(existingVoteAccount)) {
-        recordedProposalVotes.persistUserVoteOverride(glamKey);
-        logger.log(INFO, String.format("""
-                    Inferring that GLAM %s has overridden the vote for this proposal %s because a Vote account already exists.
-                    """,
-                glamKey, proposalKey
-            )
-        );
-        continue;
-      }
+        final var existingVoteAccount = voteMap.get(voteKey);
+        if (userVoted(existingVoteAccount)) {
+          recordedProposalVotes.persistUserVoteOverride(glamKey);
+          logger.log(INFO, String.format("""
+                      Inferring that GLAM %s has overridden the vote for this proposal %s because a Vote account already exists.
+                      """,
+                  glamKey, proposalKey
+              )
+          );
+          continue;
+        }
 
-      if (existingVoteAccount != null && existingVoteAccount.side() == side) {
-        // Can happen if a service vote change was interrupted.
-        // Once this processor is complete it will be cleared from the previous file.
-        // It has already been persisted in this vote side file during start up recovery.
-        continue;
-      }
+        if (existingVoteAccount != null && existingVoteAccount.side() == side) {
+          // Can happen if a service vote change was interrupted.
+          // Once this processor is complete it will be cleared from the previous file.
+          // It has already been persisted in this vote side file during start up recovery.
+          continue;
+        }
 
-      final var escrow = escrowMap.get(voteClient.escrowKey());
-      if (escrow == null) {
-        final var msg = String.format("""
-                {
-                  "event": "Delegated GLAM does not have Escrow.",
-                  "escrowKey": "%s",
-                  "glamStateKey": "%s"
-                }""",
-            voteClient.escrowKey(),
-            voteClient.glamKey()
-        );
-        voteService.postNotification(msg);
-        continue;
-      }
+        final var escrow = escrowMap.get(voteClient.escrowKey());
+        if (escrow == null) {
+          final var msg = String.format("""
+                  {
+                    "event": "Delegated GLAM does not have Escrow.",
+                    "escrowKey": "%s",
+                    "glamStateKey": "%s"
+                  }""",
+              voteClient.escrowKey(),
+              voteClient.glamKey()
+          );
+          voteService.postNotification(msg);
+          continue;
+        }
 
-      if (!voteService.eligibleToVote(escrow)) {
-        continue;
-      }
+        if (!voteService.eligibleToVote(escrow)) {
+          continue;
+        }
 
-      ix = appendInstructions(voteClient, voteKey, instructionArray, ix);
-      ++batchSize;
-      batchBitSet |= b;
+        ix = appendInstructions(voteClient, voteKey, instructionArray, ix);
+        ++batchSize;
+        batchBitSet |= b;
+      }
 
       if (voteKeyIndex == voteKeys.length || batchSize >= maxBatchSize) {
         recordedProposalVotes.truncateVoting();
@@ -233,7 +235,11 @@ abstract class VoteProcessor {
         ix = 0;
         batchSize = 0;
         batchBitSet = 0;
+        b = 0;
         recordedProposalVotes.truncateVoting();
+        if (voteKeyIndex == voteKeys.length) {
+          return;
+        }
       }
     }
   }
