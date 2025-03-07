@@ -3,6 +3,7 @@ package systems.glam.vote.jupiter;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
+import software.sava.anchor.programs.glam.GlamJupiterVoteClient;
 import software.sava.anchor.programs.glam.anchor.types.StateAccount;
 import software.sava.anchor.programs.jupiter.voter.anchor.types.Escrow;
 import software.sava.core.accounts.PublicKey;
@@ -11,17 +12,15 @@ import software.sava.solana.web2.jupiter.client.http.response.TokenContext;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.math.BigDecimal;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
-import java.util.HashMap;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
-import java.util.stream.Collectors;
 
 import static java.lang.System.Logger.Level.*;
 import static java.nio.file.StandardOpenOption.*;
@@ -36,6 +35,7 @@ final class VoteServiceWebServer implements HttpHandler, AutoCloseable {
   private final GlamAccountsCache glamAccountsCache;
   private final RpcCaller rpcCaller;
   private final TokenContext tokenContext;
+  private final double unstakeDurationSeconds;
   private final Path statsFilePath;
 
   private volatile byte[] statsResponse;
@@ -44,8 +44,10 @@ final class VoteServiceWebServer implements HttpHandler, AutoCloseable {
                                final GlamAccountsCache glamAccountsCache,
                                final RpcCaller rpcCaller,
                                final TokenContext tokenContext,
+                               final double unstakeDurationSeconds,
                                final Path statsFilePath,
                                final String statsResponse) {
+    this.unstakeDurationSeconds = unstakeDurationSeconds;
     this.server = server;
     this.glamAccountsCache = glamAccountsCache;
     this.rpcCaller = rpcCaller;
@@ -60,7 +62,8 @@ final class VoteServiceWebServer implements HttpHandler, AutoCloseable {
                                            final Path workDir,
                                            final GlamAccountsCache glamAccountsCache,
                                            final RpcCaller rpcCaller,
-                                           final TokenContext tokenContext) {
+                                           final TokenContext tokenContext,
+                                           final double unstakeDurationSeconds) {
     final var statsFilePath = workDir.resolve(".stats.json");
     final String statsResponse;
     if (Files.exists(statsFilePath)) {
@@ -86,10 +89,16 @@ final class VoteServiceWebServer implements HttpHandler, AutoCloseable {
           glamAccountsCache,
           rpcCaller,
           tokenContext,
+          unstakeDurationSeconds,
           statsFilePath,
           statsResponse
       );
-      httpServer.createContext(apiPath + (apiPath.endsWith("/") ? "stats" : "/stats"), webServer);
+      final var path = apiPath + (apiPath.endsWith("/") ? "stats" : "/stats");
+      httpServer.createContext(path, webServer);
+      logger.log(INFO, String.format("""
+              Registered stats handler at %s.""", path
+          )
+      );
       return webServer;
     } catch (final IOException e) {
       logger.log(ERROR, "Failed start api web server on port " + port, e);
@@ -102,100 +111,85 @@ final class VoteServiceWebServer implements HttpHandler, AutoCloseable {
     logger.log(INFO, String.format("API web server listening at %s.", server.getAddress()));
   }
 
-  private BigDecimal sumBatch(final Map<PublicKey, PublicKey> escrowKeyMap, final long[] staked, final int from) {
-    final int numKeys = escrowKeyMap.size();
+  private void sumBatch(final List<PublicKey> escrowKeyList,
+                        final long[] staked,
+                        final long[] votePower,
+                        final int from) {
+    final int numKeys = escrowKeyList.size();
     if (numKeys == 0) {
-      return BigDecimal.ZERO;
+      return;
     }
-    final var escrowKeyList = List.copyOf(escrowKeyMap.keySet());
-    logger.log(INFO, String.format("""
-                Fetching %d escrow accounts for the following GLAMs:
-                  * %s""",
-            numKeys,
-            escrowKeyMap.values().stream().map(PublicKey::toBase58).collect(Collectors.joining("\n  * "))
-        )
-    );
+    logger.log(INFO, String.format("Fetching %d escrow accounts.", numKeys));
     final var escrowAccountInfos = rpcCaller.courteousGet(
         rpcClient -> rpcClient.getMultipleAccounts(escrowKeyList, Escrow.FACTORY),
         "rpcClient::getEscrowAccounts"
     );
 
     int i = from;
-    var sum = BigDecimal.ZERO;
     for (final var accountInfo : escrowAccountInfos) {
-      escrowKeyMap.remove(accountInfo.pubKey());
       final var escrowAccount = accountInfo.data();
       final long amount = escrowAccount.amount();
-      staked[i++] = amount;
-      sum = sum.add(tokenContext.toDecimal(amount));
+      staked[i] = amount;
+      votePower[i] = VoteService.votingPower(escrowAccount, unstakeDurationSeconds);
+      ++i;
     }
-
-    final int numMissingEscrowAccounts = escrowKeyMap.size();
-    if (numMissingEscrowAccounts > 0) {
-      logger.log(WARNING, String.format("""
-                  Failed to find %d escrow accounts:
-                    * %s
-                  """,
-              numMissingEscrowAccounts,
-              escrowKeyMap.values().stream().map(PublicKey::toBase58).collect(Collectors.joining("\n  * "))
-          )
-      );
-    }
-
-    return sum;
   }
 
   void fetchBalances(final Map<PublicKey, StateAccount> delegatedGlams) {
-    final var escrowKeyMap = HashMap.<PublicKey, PublicKey>newHashMap(delegatedGlams.size());
-    for (final var glamKey : delegatedGlams.keySet()) {
-      final var voteClient = glamAccountsCache.computeIfAbsent(glamKey);
-      escrowKeyMap.put(voteClient.escrowKey(), glamKey);
-    }
-
-    final int numConstituents = escrowKeyMap.size();
+    final var escrowKeyList = delegatedGlams.keySet().stream()
+        .map(glamAccountsCache::computeIfAbsent)
+        .map(GlamJupiterVoteClient::escrowKey)
+        .toList();
+    final int numConstituents = escrowKeyList.size();
 
     final long[] staked = new long[numConstituents];
+    final long[] votePower = new long[numConstituents];
 
-    BigDecimal sum;
     if (numConstituents < MAX_MULTIPLE_ACCOUNTS) {
-      sum = sumBatch(escrowKeyMap, staked, 0);
+      sumBatch(escrowKeyList, staked, votePower, 0);
     } else {
-      sum = BigDecimal.ZERO;
-      final var escrowKeyMapBatch = HashMap.<PublicKey, PublicKey>newHashMap(MAX_MULTIPLE_ACCOUNTS);
-      final var iterator = escrowKeyMap.entrySet().iterator();
-
       for (int from = 0, to; from < numConstituents; from = to) {
         to = Math.min(numConstituents, from + MAX_MULTIPLE_ACCOUNTS);
-        for (int i = from; i < to; i++) {
-          final var next = iterator.next();
-          escrowKeyMap.put(next.getKey(), next.getValue());
-        }
-        sum = sum.add(sumBatch(escrowKeyMapBatch, staked, from));
-        escrowKeyMapBatch.clear();
+        final var escrowKeyListView = escrowKeyList.subList(from, to);
+        sumBatch(escrowKeyListView, staked, votePower, from);
       }
     }
 
     final var timestamp = ZonedDateTime.now(UTC).truncatedTo(ChronoUnit.SECONDS);
 
+    final String sumString;
+    final String votePowerString;
     final String medianString;
+    final String meanString;
     if (numConstituents == 0) {
+      sumString = "0";
+      votePowerString = "0";
       medianString = "0";
+      meanString = "0";
     } else {
       final int middle = staked.length >> 1;
       final long median = (staked.length & 1) == 1
           ? staked[middle]
           : (staked[middle] + staked[middle - 1]) >> 1;
       medianString = tokenContext.toDecimal(median).stripTrailingZeros().toPlainString();
+      final var summaryStats = Arrays.stream(staked).summaryStatistics();
+      sumString = tokenContext.toDecimal(summaryStats.getSum()).stripTrailingZeros().toPlainString();
+      votePowerString = tokenContext.toDecimal(Arrays.stream(votePower).sum()).stripTrailingZeros().toPlainString();
+      meanString = tokenContext.toDecimal((long) summaryStats.getAverage()).stripTrailingZeros().toPlainString();
     }
     final var responseJson = String.format("""
             {
               "staked": "%s",
+              "votePower": "%s",
               "median": "%s",
+              "mean": "%s",
               "numConstituents": %d,
               "timestamp": "%s"
             }""",
-        sum.stripTrailingZeros().toPlainString(),
+        sumString,
+        votePowerString,
         medianString,
+        meanString,
         numConstituents,
         timestamp
     );

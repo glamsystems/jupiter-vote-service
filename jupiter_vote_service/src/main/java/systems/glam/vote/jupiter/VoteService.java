@@ -113,6 +113,12 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
 
     final var workDir = config.workDir();
     final var apiConfig = config.apiConfig();
+
+    final var lockerAccountInfo = lockerFuture.join();
+    final var locker = Locker.read(lockerAccountInfo);
+    final var lockerParams = locker.params();
+    final long maxStakeDuration = lockerParams.maxStakeDuration();
+
     final var webServer = VoteServiceWebServer.createServer(
         taskExecutor,
         apiConfig.port(),
@@ -120,13 +126,10 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
         workDir,
         glamAccountsCache,
         rpcCaller,
-        tokenContext
+        tokenContext,
+        maxStakeDuration
     );
     webServer.start();
-
-    final var lockerAccountInfo = lockerFuture.join();
-    final var locker = Locker.read(lockerAccountInfo);
-    final var lockerParams = locker.params();
 
     final var epochInfoService = EpochInfoService.createService(config.epochServiceConfig(), rpcCaller);
 
@@ -163,7 +166,7 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
         config.notifyClient(),
         webServer,
         minLockedToVote,
-        lockerParams.maxStakeDuration(),
+        maxStakeDuration,
         config.stopVotingBeforeEndDuration(),
         config.newVoteBatchSize(),
         config.changeVoteBatchSize()
@@ -326,9 +329,19 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
     return Long.compareUnsigned(amount, minLockedToVote) >= 0;
   }
 
-  boolean eligibleToVote(final Escrow escrow) {
+  static long votingPower(final Escrow escrow, final double unstakeDurationSeconds) {
     final long stakedAmount = escrow.amount();
-    if (!hasMinLockedToVote(stakedAmount)) {
+    if (escrow.isMaxLock()) {
+      return stakedAmount;
+    } else {
+      final long secondsRemaining = escrow.escrowEndsAt() - Instant.now().getEpochSecond();
+      final double percentRemaining = secondsRemaining / unstakeDurationSeconds;
+      return (long) (stakedAmount * percentRemaining);
+    }
+  }
+
+  boolean eligibleToVote(final Escrow escrow) {
+    if (hasMinLockedToVote(votingPower(escrow))) {
       // Arbitrary limit set via config to avoid paying fees for trivially sized vaults.
       return false;
     } else if (!escrow.voteDelegate().equals(escrow.owner())) {
@@ -345,14 +358,13 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
           )
       );
       return false;
-    } else if (!escrow.isMaxLock()) {
-      final long secondsRemaining = escrow.escrowEndsAt() - Instant.now().getEpochSecond();
-      final double percentRemaining = secondsRemaining / unstakeDurationSeconds;
-      final double votingPower = stakedAmount * percentRemaining;
-      return hasMinLockedToVote((long) votingPower);
     } else {
       return true;
     }
+  }
+
+  long votingPower(final Escrow escrow) {
+    return votingPower(escrow, unstakeDurationSeconds);
   }
 
   PublicKey servicePublicKey() {
