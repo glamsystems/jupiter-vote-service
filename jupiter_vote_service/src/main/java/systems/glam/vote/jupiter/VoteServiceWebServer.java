@@ -167,14 +167,16 @@ final class VoteServiceWebServer implements HttpHandler, AutoCloseable {
       medianString = "0";
       meanString = "0";
     } else {
+      Arrays.sort(staked);
       final int middle = staked.length >> 1;
       final long median = (staked.length & 1) == 1
           ? staked[middle]
           : (staked[middle] + staked[middle - 1]) >> 1;
       medianString = tokenContext.toDecimal(median).stripTrailingZeros().toPlainString();
+      votePowerString = tokenContext.toDecimal(Arrays.stream(votePower).sum()).stripTrailingZeros().toPlainString();
+
       final var summaryStats = Arrays.stream(staked).summaryStatistics();
       sumString = tokenContext.toDecimal(summaryStats.getSum()).stripTrailingZeros().toPlainString();
-      votePowerString = tokenContext.toDecimal(Arrays.stream(votePower).sum()).stripTrailingZeros().toPlainString();
       meanString = tokenContext.toDecimal((long) summaryStats.getAverage()).stripTrailingZeros().toPlainString();
     }
     final var responseJson = String.format("""
