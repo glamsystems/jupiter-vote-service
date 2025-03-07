@@ -17,6 +17,7 @@ import java.util.HashSet;
 import static org.junit.jupiter.api.Assertions.*;
 import static software.sava.core.accounts.PublicKey.PUBLIC_KEY_LENGTH;
 import static software.sava.core.tx.Transaction.SIGNATURE_LENGTH;
+import static systems.glam.vote.jupiter.RecordedProposalVotes.OVERRIDE_FILE_NAME;
 import static systems.glam.vote.jupiter.RecordedProposalVotes.writeBase58Key;
 
 final class StateSerializationTests {
@@ -88,7 +89,7 @@ final class StateSerializationTests {
 
   @Test
   void testBase58KeyFile() throws IOException {
-    final var overridesFilePath = BASE_PATH.resolve("overridden.glams.json");
+    final var overridesFilePath = BASE_PATH.resolve(OVERRIDE_FILE_NAME);
     if (Files.notExists(overridesFilePath)) {
       Files.createFile(overridesFilePath);
     }

@@ -91,12 +91,13 @@ record RecordedProposalVotes(Set<PublicKey> overrides,
     return keys;
   }
 
-  static final String VOTES_SUFFIX = ".vote.json";
+  static final String VOTES_SUFFIX = ".vote.txt";
+  static final String OVERRIDE_FILE_NAME = "overridden.glams.txt";
 
   static RecordedProposalVotes createRecord(final Path proposalsDirectory, final ProposalVote proposalVote) {
     final var proposal = proposalVote.proposal();
     final var proposalDir = proposalsDirectory.resolve(proposal.toBase58());
-    final var overridesFilePath = proposalDir.resolve("overridden.glams.json");
+    final var overridesFilePath = proposalDir.resolve(OVERRIDE_FILE_NAME);
     final var votingFilePath = proposalDir.resolve("voting.glams");
     final var voteFilePath = proposalDir.resolve(proposalVote.side() + VOTES_SUFFIX);
     try {
