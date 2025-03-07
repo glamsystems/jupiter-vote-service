@@ -1,6 +1,7 @@
 package systems.glam.vote.jupiter;
 
 import software.sava.anchor.programs.glam.GlamJupiterVoteClient;
+import software.sava.anchor.programs.glam.anchor.GlamError;
 import software.sava.anchor.programs.jupiter.governance.anchor.types.Proposal;
 import software.sava.anchor.programs.jupiter.governance.anchor.types.Vote;
 import software.sava.core.accounts.PublicKey;
@@ -12,7 +13,11 @@ import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.List;
 
+import static java.lang.System.Logger.Level.INFO;
+
 final class ChangeVoteProcessor extends VoteProcessor {
+
+  private static final System.Logger logger = System.getLogger(ChangeVoteProcessor.class.getName());
 
   private final int previousSide;
   private final RecordedOptionVotes previousOptionVotes;
@@ -68,6 +73,25 @@ final class ChangeVoteProcessor extends VoteProcessor {
 
   @Override
   protected boolean handledFailedIx(final int indexOffset, final long customErrorCode, final List<String> logs) {
+    if (customErrorCode > 0 && customErrorCode < Integer.MAX_VALUE) {
+      try {
+        final var glamError = GlamError.getInstance((int) customErrorCode);
+        if (glamError instanceof GlamError.InvalidVoteSide) {
+          final var voteClient = getBatchVoteClient(indexOffset);
+          final var glamKey = voteClient.glamKey();
+          recordedProposalVotes.persistUserVoteOverride(glamKey);
+          logger.log(INFO, String.format("""
+                      GLAM %s has overridden the vote for this proposal %s because the witnessed vote side does not match expected.
+                      """,
+                  glamKey, proposalKey
+              )
+          );
+          return true;
+        }
+      } catch (final RuntimeException ignored) {
+        return false;
+      }
+    }
     return false;
   }
 
