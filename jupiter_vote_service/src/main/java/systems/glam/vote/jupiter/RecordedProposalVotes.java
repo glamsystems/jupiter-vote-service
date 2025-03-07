@@ -86,7 +86,7 @@ record RecordedProposalVotes(Set<PublicKey> overrides,
     final var keys = HashSet.<PublicKey>newHashSet(numKeys);
     for (String line; (line = keyFile.readLine()) != null; ) {
       final var stripped = line.strip();
-      if (stripped.isEmpty()) {
+      if (!stripped.isEmpty()) {
         final var key = PublicKey.fromBase58Encoded(stripped);
         keys.add(key);
       }
