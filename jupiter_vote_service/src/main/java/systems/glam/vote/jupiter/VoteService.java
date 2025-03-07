@@ -294,6 +294,10 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
     return notifyClient.postMsg(msg);
   }
 
+  boolean stopVotingForProposal(final Proposal proposal) {
+    return (Instant.now().getEpochSecond() + stopVotingSecondsBeforeEnd) >= proposal.votingEndsAt();
+  }
+
   int newVoteBatchSize() {
     return newVoteBatchSize;
   }

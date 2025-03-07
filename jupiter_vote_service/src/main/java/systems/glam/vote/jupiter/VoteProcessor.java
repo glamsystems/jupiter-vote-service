@@ -14,7 +14,6 @@ import software.sava.services.solana.transactions.TransactionProcessor;
 import software.sava.services.solana.transactions.TxMonitorService;
 
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
@@ -220,8 +219,7 @@ abstract class VoteProcessor {
 
       if (voteKeyIndex == voteKeys.length || batchSize >= maxBatchSize) {
         recordedProposalVotes.truncateVoting();
-        final long nowEpochSeconds = Instant.now().getEpochSecond() + 8;
-        if (nowEpochSeconds > proposal.votingEndsAt()) {
+        if (voteService.stopVotingForProposal(proposal)) {
           return;
         }
         if (publishBatch()) {
