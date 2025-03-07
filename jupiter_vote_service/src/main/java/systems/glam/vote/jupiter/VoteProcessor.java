@@ -219,7 +219,7 @@ abstract class VoteProcessor {
 
       if (voteKeyIndex == voteKeys.length || batchSize >= maxBatchSize) {
         recordedProposalVotes.truncateVoting();
-        if (voteService.stopVotingForProposal(proposal)) {
+        if (batchSize == 0 || voteService.stopVotingForProposal(proposal)) {
           return;
         }
         if (publishBatch()) {
