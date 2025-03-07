@@ -16,6 +16,7 @@ import software.sava.services.solana.transactions.TxMonitorService;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 
 import static java.lang.System.Logger.Level.*;
@@ -221,7 +222,7 @@ abstract class VoteProcessor {
         if (nowEpochSeconds > proposal.votingEndsAt()) {
           return;
         }
-        if (publishBatch(fromVoteClientIndex, voteKeys)) {
+        if (publishBatch()) {
           resetBatchClientIndex = voteClientIndex;
           resetBatchVoteKeyIndex = voteKeyIndex;
         } else {
@@ -237,7 +238,7 @@ abstract class VoteProcessor {
     }
   }
 
-  private boolean publishBatch(final int fromVoteClientIndex, final PublicKey[] voteKeys) throws InterruptedException {
+  private boolean publishBatch() throws InterruptedException {
     final var instructions = List.of(ix == instructionArray.length
         ? instructionArray
         : Arrays.copyOfRange(instructionArray, 0, ix)
@@ -402,7 +403,18 @@ abstract class VoteProcessor {
           }
         }
       }
-      // TODO: Trigger Alert case TransactionError.InsufficientFundsForFee _, TransactionError.InsufficientFundsForRent _ -> {}
+      case TransactionError.InsufficientFundsForFee _, TransactionError.InsufficientFundsForRent _ -> {
+        logger.log(ERROR, logResult.get());
+        voteService.postNotification(String.format("""
+                {
+                 "event": "Insufficient funds for fee or rent.",
+                 "action": "More lamports please.",
+                 "account": "%s"
+                }""",
+            voteService.servicePublicKey()
+        )).forEach(CompletableFuture::join);
+        throw new IllegalStateException("Unhandled transaction error " + error);
+      }
       default -> {
         logger.log(ERROR, logResult.get());
         throw new IllegalStateException("Unhandled transaction error " + error);

@@ -41,6 +41,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -289,8 +290,8 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
     this.changeVoteBatchSize = changeVoteBatchSize;
   }
 
-  void postNotification(final String msg) {
-    notifyClient.postMsg(msg);
+  List<CompletableFuture<String>> postNotification(final String msg) {
+    return notifyClient.postMsg(msg);
   }
 
   int newVoteBatchSize() {
