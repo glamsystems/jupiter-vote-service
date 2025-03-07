@@ -7,8 +7,13 @@ import software.sava.core.accounts.PublicKey;
 import software.sava.core.tx.Instruction;
 
 import java.util.Collection;
+import java.util.List;
+
+import static java.lang.System.Logger.Level.INFO;
 
 final class NewVoteProcessor extends VoteProcessor {
+
+  private static final System.Logger logger = System.getLogger(NewVoteProcessor.class.getName());
 
   NewVoteProcessor(final VoteService voteService,
                    final PublicKey proposalKey,
@@ -41,6 +46,43 @@ final class NewVoteProcessor extends VoteProcessor {
   @Override
   protected int reduceBatchSize() {
     return voteService.reduceNewVoteBatchSize();
+  }
+
+  @Override
+  protected boolean handledFailedIx(final int indexOffset,
+                                    final long customErrorCode,
+                                    final List<String> logs) {
+    if ((indexOffset & 1) == 0) { // Even is new vote instructions.
+      if (customErrorCode == 0) {
+        for (final var log : logs) {
+          if (log.startsWith("Allocate: account Address") && log.endsWith("already in use")) {
+            final var key = "address: ";
+            int from = log.indexOf(key);
+            if (from > 0) {
+              from += key.length();
+              final var voteAccount = PublicKey.fromBase58Encoded(log.substring(from, log.indexOf(',', from + PublicKey.PUBLIC_KEY_LENGTH)));
+
+              final var voteClient = getBatchVoteClient(indexOffset >> 1);
+              final var voteKey = voteClient.deriveVoteKey(proposalKey);
+
+              if (voteAccount.equals(voteKey)) {
+                final var glamKey = voteClient.glamKey();
+                recordedProposalVotes.persistUserVoteOverride(glamKey);
+                logger.log(INFO, String.format("""
+                            GLAM %s has overridden the vote for this proposal %s because Vote account, %s, already exists.
+                            """,
+                        glamKey, voteAccount, proposalKey
+                    )
+                );
+                return true;
+              }
+            }
+            return false;
+          }
+        }
+      }
+    }
+    return false;
   }
 
   @Override

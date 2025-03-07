@@ -143,9 +143,21 @@ abstract class VoteProcessor {
     }
   }
 
+  protected final GlamJupiterVoteClient getBatchVoteClient(final int offset) {
+    for (int i = resetBatchClientIndex, bs = 1, c = 0; i < voteClientIndex; ++i, bs <<= 1) {
+      if ((batchBitSet & bs) == bs) {
+        if (c == offset) {
+          return voteClients[i];
+        } else {
+          ++c;
+        }
+      }
+    }
+    throw new IllegalStateException("Offset out of bounds.");
+  }
 
-  private void processBatch(final int from, final PublicKey[] voteKeys) throws InterruptedException {
-    voteClientIndex = from;
+  private void processBatch(final int fromVoteClientIndex, final PublicKey[] voteKeys) throws InterruptedException {
+    voteClientIndex = fromVoteClientIndex;
     resetBatchClientIndex = voteClientIndex;
     voteKeyIndex = 0;
     resetBatchVoteKeyIndex = voteKeyIndex;
@@ -156,11 +168,11 @@ abstract class VoteProcessor {
     for (int b = 1; voteKeyIndex < voteKeys.length; b <<= 1) {
       final var voteClient = voteClients[voteClientIndex++];
       final var glamKey = voteClient.glamKey();
+      final var voteKey = voteKeys[voteKeyIndex++];
       if (recordedProposalVotes.didUserOverrideVote(glamKey)) {
         continue;
       }
 
-      final var voteKey = voteKeys[voteKeyIndex++];
       final var existingVoteAccount = voteMap.get(voteKey);
       if (userVoted(existingVoteAccount)) {
         recordedProposalVotes.persistUserVoteOverride(glamKey);
@@ -209,7 +221,7 @@ abstract class VoteProcessor {
         if (nowEpochSeconds > proposal.votingEndsAt()) {
           return;
         }
-        if (publishBatch()) {
+        if (publishBatch(fromVoteClientIndex, voteKeys)) {
           resetBatchClientIndex = voteClientIndex;
           resetBatchVoteKeyIndex = voteKeyIndex;
         } else {
@@ -225,7 +237,7 @@ abstract class VoteProcessor {
     }
   }
 
-  private boolean publishBatch() throws InterruptedException {
+  private boolean publishBatch(final int fromVoteClientIndex, final PublicKey[] voteKeys) throws InterruptedException {
     final var instructions = List.of(ix == instructionArray.length
         ? instructionArray
         : Arrays.copyOfRange(instructionArray, 0, ix)
@@ -262,7 +274,11 @@ abstract class VoteProcessor {
     final var simulationResult = simulationFutures.simulationFuture().join();
     final var simulationError = simulationResult.error();
     if (simulationError != null) {
-      handleError(simulationError, () -> formatSimulationResult(simulationResult));
+      handleError(
+          simulationError,
+          simulationResult.logs(),
+          () -> formatSimulationResult(simulationResult)
+      );
       return false;
     }
 
@@ -323,7 +339,11 @@ abstract class VoteProcessor {
     }
 
     if (error != null) {
-      handleError(error, () -> transactionProcessor.formatTxResult(txSig, txResult));
+      handleError(
+          error,
+          simulationResult.logs(),
+          () -> transactionProcessor.formatTxResult(txSig, txResult)
+      );
       return false;
     } else {
       persistVotes(keys);
@@ -340,7 +360,13 @@ abstract class VoteProcessor {
 
   protected abstract int reduceBatchSize();
 
-  protected final void handleError(final TransactionError error, final Supplier<String> logResult) {
+  protected abstract boolean handledFailedIx(final int indexOffset,
+                                             final long customErrorCode,
+                                             final List<String> logs);
+
+  protected final void handleError(final TransactionError error,
+                                   final List<String> logs,
+                                   final Supplier<String> logResult) {
     // TODO: handle escrow account updates such as deletion or transitions to fully unstaked.
     // TODO: handle vote account deletion
     switch (error) {
@@ -358,20 +384,11 @@ abstract class VoteProcessor {
           }
           case IxError.Custom(final long errorCode) -> {
             logger.log(ERROR, logResult.get());
-            if (ixIndex > 1) {
-              if ((ixIndex & 1) == 0) { // Govern Program: newVote
-                // TODO: explicit error code check for this case.
-                final var voteClient = voteClients[voteClientIndex + ((ixIndex >> 1) - 1)];
-                final var glamKey = voteClient.glamKey();
-                recordedProposalVotes.persistUserVoteOverride(glamKey);
-                logger.log(INFO, String.format("""
-                            Inferring that GLAM %s has overridden the vote for this proposal %s because failed to create a new Vote account.
-                            """,
-                        glamKey, proposalKey
-                    )
-                );
+            if (ixIndex >= 2) {
+              final int indexOffset = ixIndex - 2;
+              if (handledFailedIx(indexOffset, errorCode, logs)) {
                 return;
-              } // else { // Govern Program: newVote
+              }
             }
             throw new IllegalStateException(String.format("""
                 Unhandled ix error [index=%d] [error=%s]""", ixIndex, ixError

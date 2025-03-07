@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.io.UncheckedIOException;
 import java.util.Collection;
+import java.util.List;
 
 final class ChangeVoteProcessor extends VoteProcessor {
 
@@ -63,6 +64,11 @@ final class ChangeVoteProcessor extends VoteProcessor {
   @Override
   protected int reduceBatchSize() {
     return voteService.reduceChangeVoteBatchSize();
+  }
+
+  @Override
+  protected boolean handledFailedIx(final int indexOffset, final long customErrorCode, final List<String> logs) {
+    return false;
   }
 
   @Override
