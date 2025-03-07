@@ -6,7 +6,7 @@ License text copyright © 2024 MariaDB plc, All Rights Reserved. "Business Sourc
 
 Licensor: Lamport Systems, Inc.
 
-Licensed Work: GLAM Protocol
+Licensed Work: GLAM Jupiter Vote Service
 
 Additional Use Grant: None
 
