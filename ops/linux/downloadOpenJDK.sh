@@ -2,14 +2,14 @@
 
 set -e
 
-#. /downloadOpenJDK.sh ---a=ga --v=23 --b=37 --id=6da2a6609d6e406f85c491fcb119101b --c=017f4ed8e8234d85e5bc1e490bb86f23599eadb6cfc9937ee87007b977a7d762
+#. /downloadOpenJDK.sh ---a=ga --v=24 --b=36 --id=1f9ff9062db4449d8ca828c504ffae90 --c=88b090fa80c6c1d084ec9a755233967458788e2c0777ae2e172230c5c692d7ef
 
-# https://download.java.net/java/GA/jdk23.0.2/6da2a6609d6e406f85c491fcb119101b/7/GPL/openjdk-23.0.2_linux-x64_bin.tar.gz
+# https://download.java.net/java/GA/jdk24/1f9ff9062db4449d8ca828c504ffae90/36/GPL/openjdk-24_linux-x64_bin.tar.gz
 availability="ga"
-version="23.0.2"
-build="7"
-id="6da2a6609d6e406f85c491fcb119101b"
-checksum="017f4ed8e8234d85e5bc1e490bb86f23599eadb6cfc9937ee87007b977a7d762"
+version="24"
+build="36"
+id="1f9ff9062db4449d8ca828c504ffae90"
+checksum="88b090fa80c6c1d084ec9a755233967458788e2c0777ae2e172230c5c692d7ef"
 
 for arg in "$@"
 do
