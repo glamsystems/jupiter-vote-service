@@ -341,7 +341,7 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
   }
 
   boolean eligibleToVote(final Escrow escrow) {
-    if (hasMinLockedToVote(votingPower(escrow))) {
+    if (!hasMinLockedToVote(votingPower(escrow))) {
       // Arbitrary limit set via config to avoid paying fees for trivially sized vaults.
       return false;
     } else if (!escrow.voteDelegate().equals(escrow.owner())) {
