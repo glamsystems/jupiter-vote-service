@@ -2,7 +2,7 @@
 
 set -e
 
-targetJavaVersion=23
+targetJavaVersion=24
 readonly targetJavaVersion
 simpleProjectName="jupiter_vote_service"
 readonly simpleProjectName

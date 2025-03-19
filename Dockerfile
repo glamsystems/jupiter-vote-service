@@ -11,7 +11,7 @@ RUN --mount=type=secret,id=GITHUB_ACTOR \
     --mount=type=secret,id=GITHUB_TOKEN \
     export GITHUB_ACTOR=$(cat /run/secrets/GITHUB_ACTOR); \
     export GITHUB_TOKEN=$(cat /run/secrets/GITHUB_TOKEN); \
-    gradle --console=plain --no-daemon --exclude-task=test :${PROJECT}:jlink -PnoVersionTag=true
+    gradle --ptargetJava=23 --console=plain --no-daemon --exclude-task=test :${PROJECT}:jlink -PnoVersionTag=true
 
 FROM alpine:3
 
