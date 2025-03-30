@@ -2,7 +2,7 @@
 
 set -e
 
-#. /downloadOpenJDK.sh ---a=ga --v=24 --b=36 --id=1f9ff9062db4449d8ca828c504ffae90 --c=88b090fa80c6c1d084ec9a755233967458788e2c0777ae2e172230c5c692d7ef
+#./downloadOpenJDK.sh ---a=ga --v=24 --b=36 --id=1f9ff9062db4449d8ca828c504ffae90 --c=88b090fa80c6c1d084ec9a755233967458788e2c0777ae2e172230c5c692d7ef
 
 # https://download.java.net/java/GA/jdk24/1f9ff9062db4449d8ca828c504ffae90/36/GPL/openjdk-24_linux-x64_bin.tar.gz
 availability="ga"
