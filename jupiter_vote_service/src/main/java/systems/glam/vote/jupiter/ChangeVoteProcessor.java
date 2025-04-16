@@ -1,7 +1,7 @@
 package systems.glam.vote.jupiter;
 
 import software.sava.anchor.programs.glam.GlamJupiterVoteClient;
-import software.sava.anchor.programs.glam.anchor.GlamError;
+import software.sava.anchor.programs.glam.anchor.GlamProtocolError;
 import software.sava.anchor.programs.jupiter.governance.anchor.types.Proposal;
 import software.sava.anchor.programs.jupiter.governance.anchor.types.Vote;
 import software.sava.core.accounts.PublicKey;
@@ -75,8 +75,8 @@ final class ChangeVoteProcessor extends VoteProcessor {
   protected boolean handledFailedIx(final int indexOffset, final long customErrorCode, final List<String> logs) {
     if (customErrorCode > 0 && customErrorCode < Integer.MAX_VALUE) {
       try {
-        final var glamError = GlamError.getInstance((int) customErrorCode);
-        if (glamError instanceof GlamError.InvalidVoteSide) {
+        final var glamError = GlamProtocolError.getInstance((int) customErrorCode);
+        if (glamError instanceof GlamProtocolError.InvalidVoteSide) {
           final var voteClient = getBatchVoteClient(indexOffset);
           final var glamKey = voteClient.glamKey();
           recordedProposalVotes.persistUserVoteOverride(glamKey);

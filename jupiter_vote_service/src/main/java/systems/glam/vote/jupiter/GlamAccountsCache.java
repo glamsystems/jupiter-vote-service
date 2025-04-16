@@ -2,7 +2,7 @@ package systems.glam.vote.jupiter;
 
 import software.sava.anchor.programs.glam.GlamAccounts;
 import software.sava.anchor.programs.glam.GlamJupiterVoteClient;
-import software.sava.anchor.programs.glam.anchor.GlamPDAs;
+import software.sava.anchor.programs.glam.anchor.GlamProtocolPDAs;
 import software.sava.anchor.programs.jupiter.JupiterAccounts;
 import software.sava.core.accounts.PublicKey;
 import software.sava.core.accounts.SolanaAccounts;
@@ -44,7 +44,7 @@ public record GlamAccountsCache(SolanaAccounts solanaAccounts,
 
   @Override
   public GlamJupiterVoteClient apply(final PublicKey glamAccount) {
-    final var vaultAccount = GlamPDAs.glamVaultPDA(glamAccounts.program(), glamAccount).publicKey();
+    final var vaultAccount = GlamProtocolPDAs.glamVaultPDA(glamAccounts.program(), glamAccount).publicKey();
     return GlamJupiterVoteClient.createClient(
         solanaAccounts, jupiterAccounts, glamAccounts,
         glamAccount, vaultAccount,
