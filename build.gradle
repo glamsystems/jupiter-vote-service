@@ -1,12 +1,5 @@
-buildscript {
-  repositories {
-    maven { url = 'https://plugins.gradle.org/m2/' }
-    mavenCentral()
-  }
-  dependencies {
-    // https://plugins.gradle.org/plugin/org.beryx.jlink
-    classpath "org.beryx:badass-jlink-plugin:3.1.1"
-  }
+plugins {
+  alias(libs.plugins.jlink)
 }
 
 ext {
@@ -19,7 +12,7 @@ final GPR_USER = project.findProperty("gpr.user") ?: System.getenv("GITHUB_ACTOR
 final GPR_TOKEN = project.findProperty("gpr.token") ?: System.getenv("GITHUB_TOKEN")
 
 subprojects {
-  apply plugin: 'java'
+  apply(plugin: 'java')
 
   project.group = 'systems.glam'
   project.version = "$VERSION"

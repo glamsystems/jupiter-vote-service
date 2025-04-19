@@ -58,7 +58,7 @@ import static software.sava.rpc.json.http.client.SolanaRpcClient.MAX_MULTIPLE_AC
 public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnable, AutoCloseable {
 
   private static final System.Logger logger = System.getLogger(VoteService.class.getName());
-  private static final Permission VOTE_PERMISSION = Permission.VoteOnProposal;
+  private static final Permission VOTE_PERMISSION = Permission.JupiterGovVoteOnProposal;
 
   private static VoteService createService(final ExecutorService serviceExecutor,
                                            final ExecutorService taskExecutor,
