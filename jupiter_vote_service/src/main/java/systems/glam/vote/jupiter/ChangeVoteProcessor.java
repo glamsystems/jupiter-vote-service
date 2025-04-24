@@ -44,8 +44,8 @@ final class ChangeVoteProcessor extends VoteProcessor {
     this.previousOptionVotes = previousOptionVotes;
     this.previousVotesFile = previousOptionVotes.file();
 
-    // Ensure file matches the same set of glams we are processing,
-    // and it is in reverse order so that file can simply be truncated to persist progress.
+    // Ensure the file matches the same set of glams we are processing,
+    // and it is in reverse order so that the file can simply be truncated to persist progress.
     final var glamKeys = new byte[voteClients.length * PublicKey.PUBLIC_KEY_LENGTH];
     for (int i = voteClients.length - 1, offset = 0; i >= 0; --i) {
       final var voteClient = voteClients[i];
@@ -106,9 +106,9 @@ final class ChangeVoteProcessor extends VoteProcessor {
 
   @Override
   protected void persistVotes(final Collection<PublicKey> glamKeys) {
-    // At this point the glam has been voted for by the service or themselves so clear previous service vote regardless.
-    // If they voted themselves it has been recorded in the override file.
-    // If the service has voted it still is recorded in the voting file in case there is a server failure in-between
+    // At this point the glam has been voted for by the service or themselves, so clear previous service vote regardless.
+    // If they voted themselves, it has been recorded in the override file.
+    // If the service has voted, it still is recorded in the voting file in case there is a server failure in-between
     // removing the vote and recording the new service vote.
     final long numKeys = voteClientIndex - resetBatchClientIndex;
     try {
