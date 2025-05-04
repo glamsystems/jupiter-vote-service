@@ -115,23 +115,27 @@ abstract class VoteProcessor {
       logger.log(INFO, String.format("Fetching %d escrow and vote accounts.", len));
       final var escrowKeyList = Arrays.asList(escrowKeys);
       final var escrowAccountInfosFuture = rpcCaller.courteousCall(
-          rpcClient -> rpcClient.getMultipleAccounts(escrowKeyList, Escrow.FACTORY),
+          rpcClient -> rpcClient.getAccounts(escrowKeyList, Escrow.FACTORY),
           "rpcClient::getEscrowAccounts"
       );
 
       final var voteKeyList = Arrays.asList(voteKeys);
       final var voteAccountInfos = rpcCaller.courteousGet(
-          rpcClient -> rpcClient.getMultipleAccounts(voteKeyList, Vote.FACTORY),
+          rpcClient -> rpcClient.getAccounts(voteKeyList, Vote.FACTORY),
           "rpcClient::getVoteAccounts"
       );
 
       for (final var accountInfo : voteAccountInfos) {
-        voteMap.put(accountInfo.pubKey(), accountInfo.data());
+        if (accountInfo != null) {
+          voteMap.put(accountInfo.pubKey(), accountInfo.data());
+        }
       }
 
       final var escrowAccountInfos = escrowAccountInfosFuture.join();
       for (final var accountInfo : escrowAccountInfos) {
-        escrowMap.put(accountInfo.pubKey(), accountInfo.data());
+        if (accountInfo != null) {
+          escrowMap.put(accountInfo.pubKey(), accountInfo.data());
+        }
       }
 
       logger.log(INFO, String.format(

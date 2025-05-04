@@ -481,12 +481,14 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
                                   final List<PublicKey> batch) {
     logger.log(INFO, String.format("Fetching %d proposal account(s).", batch.size()));
     final var proposalAccounts = rpcCaller.courteousGet(
-        rpcClient -> rpcClient.getMultipleAccounts(batch),
-        "rpcClient::getMultipleAccounts"
+        rpcClient -> rpcClient.getAccounts(batch),
+        "rpcClient::getProposalAccounts"
     );
     for (final var accountInfo : proposalAccounts) {
-      final var proposal = Proposal.read(accountInfo);
-      proposalAccountStateMap.put(proposal._address(), proposal);
+      if (accountInfo != null) {
+        final var proposal = Proposal.read(accountInfo);
+        proposalAccountStateMap.put(proposal._address(), proposal);
+      }
     }
   }
 
@@ -512,7 +514,7 @@ public final class VoteService implements Consumer<AccountInfo<byte[]>>, Runnabl
   }
 
   @Override
-  @SuppressWarnings({"BusyWait", "InfiniteLoopStatement"})
+  @SuppressWarnings({"BusyWait"})
   public void run() {
     try {
       logger.log(INFO, "Starting service with key " + servicePublicKey.toBase58());

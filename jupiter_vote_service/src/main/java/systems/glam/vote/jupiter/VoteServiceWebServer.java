@@ -121,17 +121,19 @@ final class VoteServiceWebServer implements HttpHandler, AutoCloseable {
     }
     logger.log(INFO, String.format("Fetching %d escrow accounts.", numKeys));
     final var escrowAccountInfos = rpcCaller.courteousGet(
-        rpcClient -> rpcClient.getMultipleAccounts(escrowKeyList, Escrow.FACTORY),
+        rpcClient -> rpcClient.getAccounts(escrowKeyList, Escrow.FACTORY),
         "rpcClient::getEscrowAccounts"
     );
 
     int i = from;
     for (final var accountInfo : escrowAccountInfos) {
-      final var escrowAccount = accountInfo.data();
-      final long amount = escrowAccount.amount();
-      staked[i] = amount;
-      votePower[i] = VoteService.votingPower(escrowAccount, unstakeDurationSeconds);
-      ++i;
+      if (accountInfo != null) {
+        final var escrowAccount = accountInfo.data();
+        final long amount = escrowAccount.amount();
+        staked[i] = amount;
+        votePower[i] = VoteService.votingPower(escrowAccount, unstakeDurationSeconds);
+        ++i;
+      }
     }
   }
 

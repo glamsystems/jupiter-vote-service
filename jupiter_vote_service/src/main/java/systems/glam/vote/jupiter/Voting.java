@@ -95,9 +95,12 @@ record Voting(int side,
             .map(voteClient -> voteClient.deriveVoteKey(proposalKey))
             .toList();
         final var voteAccounts = rpcCaller.courteousGet(
-            rpcClient -> rpcClient.getMultipleAccounts(voteKeys, Vote.FACTORY),
-            "rpcClient::getMultipleAccounts"
-        ).stream().collect(Collectors.toUnmodifiableMap(AccountInfo::pubKey, AccountInfo::data));
+                rpcClient -> rpcClient.getAccounts(voteKeys, Vote.FACTORY),
+                "rpcClient::getVoteAccounts"
+            )
+            .stream()
+            .filter(Objects::nonNull)
+            .collect(Collectors.toUnmodifiableMap(AccountInfo::pubKey, AccountInfo::data));
 
         final var tx = txFuture.join();
         final boolean txExecutedSuccessfully;
